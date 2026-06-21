@@ -1,0 +1,17 @@
+[package]
+name = "minehaul_core"
+edition = "2024"
+version = "0.0.1"
+
+# minehaul_core is the world-agnostic foundation of the Minehaul protocol.
+# It depends ONLY on multicoin (for in-flight cargo + reward tokens) and
+# armature (for DAO-scoped membership, proposals, and type-state).
+# It MUST NOT depend on evefrontier/world-contracts — that surface is reached
+# exclusively through the minehaul_world_v0 / minehaul_world_v1 adapter
+# packages via hot-potato witnesses defined in witnesses.move.
+[dependencies]
+armature  = { git = "https://github.com/loash-industries/armature.git",     subdir = "packages/armature_framework", rev = "4bd6fbaea43fab3967b0c1627b1bea679abc78c3" }
+multicoin = { git = "https://github.com/Algorithmic-Warfare/multicoin",      subdir = "packages/multicoin",          rev = "c7a97f2f42ffbddbe2d44686cbc9eebd1810b8d6", override = true }
+
+[environments]
+testnet_wip = "4c78adac"

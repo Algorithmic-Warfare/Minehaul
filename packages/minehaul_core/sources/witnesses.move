@@ -1,0 +1,185 @@
+/// Hot-potato witnesses and adapter registry. The only modules that mint
+/// `VerifiedSsu`, `VerifiedGate`, or `MintedPermit` are the world adapter
+/// packages (minehaul_world_v0 / minehaul_world_v1). Adapters identify
+/// themselves with an `AdapterAuth` registered into a per-LogisticNetwork
+/// `AdapterRegistry`. Core consumes the hot potatoes in-place; it never
+/// stores or copies them.
+module minehaul_core::witnesses;
+
+use sui::clock::Clock;
+use armature::proposal::ExecutionRequest;
+
+/// Long-lived adapter identity. One per published adapter package. After
+/// registration via `register_adapter`, the holder of `&AdapterAuth` can mint
+/// the verification witnesses below for as long as `revoked == false`.
+public struct AdapterAuth has key, store {
+    id: UID,
+    adapter_pkg: address,
+    world_version: u8,
+    revoked: bool,
+}
+
+/// Per-LogisticNetwork list of `AdapterAuth` IDs currently allowed to mint
+/// witnesses for actions on this network. Registered/revoked via
+/// `ExecutionRequest`-gated functions.
+public struct AdapterRegistry has key {
+    id: UID,
+    network_id: ID,
+    authorized: vector<ID>,
+}
+
+/// Proof that the adapter has confirmed `ssu_id` is a deployed, online,
+/// owner-verified Smart Storage Unit at this point in the tx. Cannot be
+/// stored; must be consumed same-tx.
+public struct VerifiedSsu has drop {
+    ssu_id: ID,
+    network_id: ID,
+    owner_char_id: ID,
+    verified_at_ms: u64,
+}
+
+/// Proof that `gate_id` is a deployed, online, in-network Gate. Hot potato.
+public struct VerifiedGate has drop {
+    gate_id: ID,
+    network_id: ID,
+    location_id: ID,
+    verified_at_ms: u64,
+}
+
+/// Proof that the adapter has minted (and the world-contracts gate will
+/// honor) one jump permit through `gate_id`, bound to a specific route and
+/// hauler. Hot potato; consumed by `route::verify_hop`.
+public struct MintedPermit has drop {
+    gate_id: ID,
+    route_hash: vector<u8>,
+    hauler: address,
+    expires_at_ms: u64,
+}
+
+// === Registry lifecycle (ExecutionRequest-gated) ===
+
+/// Spawn an empty registry for a LogisticNetwork. Called once during network
+/// init by `network::init_network`.
+public(package) fun new_registry<P>(
+    network_id: ID,
+    _req: &ExecutionRequest<P>,
+    ctx: &mut TxContext,
+): AdapterRegistry {
+    abort 0
+}
+
+public(package) fun share_registry(registry: AdapterRegistry) {
+    abort 0
+}
+
+/// Authorize an `AdapterAuth` ID on this network's registry. The auth object
+/// itself stays with the adapter; the registry just records that its ID is
+/// trusted here.
+public(package) fun register_adapter<P>(
+    registry: &mut AdapterRegistry,
+    auth_id: ID,
+    _req: &ExecutionRequest<P>,
+) {
+    abort 0
+}
+
+/// Flip an authorized adapter to revoked. After this, witness mint calls
+/// using `auth` abort with `EAdapterRevoked`.
+public(package) fun revoke_adapter<P>(
+    registry: &mut AdapterRegistry,
+    auth: &mut AdapterAuth,
+    _req: &ExecutionRequest<P>,
+) {
+    abort 0
+}
+
+// === Adapter-publish helpers (called by adapter `init` functions) ===
+
+/// Construct a fresh `AdapterAuth`. The adapter's `init` calls this once and
+/// transfers the result to itself (or a DAO-controlled custodian).
+public fun new_auth(
+    adapter_pkg: address,
+    world_version: u8,
+    ctx: &mut TxContext,
+): AdapterAuth {
+    abort 0
+}
+
+// === Witness mint (called by adapter modules) ===
+// These are `public` so adapters in sibling packages can call them, but each
+// requires `&AdapterAuth` + `&AdapterRegistry` matching the network and
+// passes `errors::EAdapterRevoked` / `EAdapterNotRegistered` /
+// `EAdapterNetworkMismatch` if the auth is invalid.
+
+public fun mint_verified_ssu(
+    auth: &AdapterAuth,
+    registry: &AdapterRegistry,
+    ssu_id: ID,
+    owner_char_id: ID,
+    clock: &Clock,
+): VerifiedSsu {
+    abort 0
+}
+
+public fun mint_verified_gate(
+    auth: &AdapterAuth,
+    registry: &AdapterRegistry,
+    gate_id: ID,
+    location_id: ID,
+    clock: &Clock,
+): VerifiedGate {
+    abort 0
+}
+
+public fun mint_permit(
+    auth: &AdapterAuth,
+    registry: &AdapterRegistry,
+    gate_id: ID,
+    route_hash: vector<u8>,
+    hauler: address,
+    ttl_ms: u64,
+    clock: &Clock,
+): MintedPermit {
+    abort 0
+}
+
+// === Accessors ===
+
+public fun auth_revoked(self: &AdapterAuth): bool { self.revoked }
+public fun auth_world_version(self: &AdapterAuth): u8 { self.world_version }
+public fun auth_adapter_pkg(self: &AdapterAuth): address { self.adapter_pkg }
+
+public fun registry_network_id(self: &AdapterRegistry): ID { self.network_id }
+public fun registry_authorized(self: &AdapterRegistry): &vector<ID> { &self.authorized }
+
+public fun vssu_id(v: &VerifiedSsu): ID { v.ssu_id }
+public fun vssu_network(v: &VerifiedSsu): ID { v.network_id }
+public fun vssu_owner(v: &VerifiedSsu): ID { v.owner_char_id }
+public fun vssu_verified_at_ms(v: &VerifiedSsu): u64 { v.verified_at_ms }
+
+public fun vgate_id(v: &VerifiedGate): ID { v.gate_id }
+public fun vgate_network(v: &VerifiedGate): ID { v.network_id }
+public fun vgate_location(v: &VerifiedGate): ID { v.location_id }
+
+public fun permit_gate(p: &MintedPermit): ID { p.gate_id }
+public fun permit_route_hash(p: &MintedPermit): &vector<u8> { &p.route_hash }
+public fun permit_hauler(p: &MintedPermit): address { p.hauler }
+public fun permit_expires_at_ms(p: &MintedPermit): u64 { p.expires_at_ms }
+
+/// Destructure consumers — called by `route` / `action` modules to read
+/// fields out of the hot potato at the moment they consume it.
+public(package) fun consume_verified_ssu(v: VerifiedSsu): (ID, ID, ID, u64) {
+    let VerifiedSsu { ssu_id, network_id, owner_char_id, verified_at_ms } = v;
+    (ssu_id, network_id, owner_char_id, verified_at_ms)
+}
+
+public(package) fun consume_verified_gate(v: VerifiedGate): (ID, ID, ID, u64) {
+    let VerifiedGate { gate_id, network_id, location_id, verified_at_ms } = v;
+    (gate_id, network_id, location_id, verified_at_ms)
+}
+
+public(package) fun consume_permit(p: MintedPermit): (ID, vector<u8>, address, u64) {
+    let MintedPermit { gate_id, route_hash, hauler, expires_at_ms } = p;
+    (gate_id, route_hash, hauler, expires_at_ms)
+}
+
