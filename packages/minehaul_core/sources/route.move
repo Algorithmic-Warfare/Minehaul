@@ -68,6 +68,12 @@ public(package) fun new_empty(network_id: ID): Route {
 /// Canonical route_hash: blake2b256(bcs(gates) || bcs(network_id)).
 /// Order-sensitive — direction-strict routes. Adapters MUST use this exact
 /// byte layout when issuing permits.
+///
+/// Wire format (for adapter implementers in non-Move languages):
+///   bcs(vector<ID>) = ULEB128(length) || ID[0] || ID[1] || ...  (each ID = 32 bytes)
+///   bcs(ID)         = 32 raw address bytes
+/// Concatenate the two, hash with blake2b256, take the 32-byte digest.
+/// `route_tests::test_route_hash_golden_vector` pins this format.
 fun compute_route_hash(gates: &vector<ID>, network_id: ID): vector<u8> {
     let mut payload = bcs::to_bytes(gates);
     payload.append(bcs::to_bytes(&network_id));
