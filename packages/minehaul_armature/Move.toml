@@ -1,0 +1,20 @@
+[package]
+name = "minehaul_armature"
+edition = "2024"
+version = "0.0.1"
+
+# Proposal layer for Minehaul — wraps minehaul_core lifecycle entries in
+# armature DAO proposals. Each proposal-type marker here keys both the
+# armature governance machinery and the per-DAO LogisticNetwork type-state
+# in minehaul_core.
+#
+# Adapter packages (minehaul_world_v0 / _v1) are NOT depended on here —
+# they mint the hot-potato witnesses, which arrive through entry function
+# arguments at the callsite.
+[dependencies]
+minehaul_core = { local = "../minehaul_core" }
+armature      = { git = "https://github.com/loash-industries/armature.git", subdir = "packages/armature_framework", rev = "4bd6fbaea43fab3967b0c1627b1bea679abc78c3" }
+multicoin     = { git = "https://github.com/Algorithmic-Warfare/multicoin",  subdir = "packages/multicoin",          rev = "c7a97f2f42ffbddbe2d44686cbc9eebd1810b8d6", override = true }
+
+[environments]
+testnet_wip = "4c78adac"
