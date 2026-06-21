@@ -35,6 +35,11 @@ const EOwnerCapMismatch: u64 = 1;
 /// The character is recorded on the witness as `owner_char_id` for downstream
 /// audit; we do NOT currently enforce that `character` is the SSU's owner —
 /// the OwnerCap check is the authoritative ownership proof.
+///
+/// TODO(minehaul#9): the `owner_char_id` field is presently advisory metadata.
+/// An attacker holding a valid OwnerCap could record an arbitrary character.
+/// When the character→ssu binding is needed for downstream auth (e.g. gate
+/// permits checking carrier identity), enforce it here.
 public fun verify_ssu(
     ssu: &StorageUnit,
     owner_cap: &OwnerCap<StorageUnit>,

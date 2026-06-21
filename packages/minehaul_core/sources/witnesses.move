@@ -26,6 +26,11 @@ public struct AdapterAuth has key, store {
 /// Per-LogisticNetwork list of `AdapterAuth` IDs currently allowed to mint
 /// witnesses for actions on this network. Registered/revoked via
 /// `ExecutionRequest`-gated functions.
+///
+/// INVARIANT: has only `key` — NOT `store`. Combined with the
+/// `ExecutionRequest`-gated `new_registry` constructor, this prevents any
+/// caller from holding an unshared registry off-chain. If a future refactor
+/// adds `store`, audit every callsite that consumes one by value.
 public struct AdapterRegistry has key {
     id: UID,
     network_id: ID,
@@ -82,22 +87,27 @@ public fun share_registry(registry: AdapterRegistry) {
     transfer::share_object(registry);
 }
 
-/// Authorize an `AdapterAuth` ID on this network's registry. The auth object
-/// itself stays with the adapter; the registry just records that its ID is
-/// trusted here.
+/// Authorize an `AdapterAuth` on this network's registry. Takes `&AdapterAuth`
+/// (not just an `ID`) so a revoked auth can be rejected statically — once
+/// revoked, an auth is dead globally and re-registering is meaningless.
 public(package) fun register_adapter<P>(
     registry: &mut AdapterRegistry,
-    auth_id: ID,
+    auth: &AdapterAuth,
     _req: &ExecutionRequest<P>,
 ) {
+    assert!(!auth.revoked, errors::adapter_revoked());
+    let auth_id = object::id(auth);
     assert!(!registry.authorized.contains(&auth_id), errors::already_registered());
     registry.authorized.push_back(auth_id);
 }
 
-/// Flip an authorized adapter to revoked AND remove it from the registry.
-/// After this, witness mint calls using `auth` abort with `EAdapterRevoked`,
-/// and re-authorization would require a fresh `register_adapter` (the same
-/// auth ID can't be re-added because `revoked` stays true on the object).
+/// Flip an authorized adapter to revoked AND remove it from THIS registry.
+/// Note: revocation is terminal and global (`auth.revoked` lives on the auth
+/// object itself), so even if the same auth was registered on OTHER networks'
+/// registries, every mint anywhere will now abort with `EAdapterRevoked`.
+/// Cleaning the stale ID out of every other network's registry is optional
+/// (cosmetic only). Re-registering a revoked auth is now rejected by
+/// `register_adapter`.
 public(package) fun revoke_adapter<P>(
     registry: &mut AdapterRegistry,
     auth: &mut AdapterAuth,

@@ -39,7 +39,7 @@ fun test_authorized_adapter_can_mint_ssu_witness() {
     let auth = adapter::init_for_testing(scenario.ctx());
 
     let mut registry: AdapterRegistry =
-        witnesses::new_registry_for_test(net(), vector::empty(), scenario.ctx());
+        witnesses::new_registry_for_test(net(), vector[], scenario.ctx());
     witnesses::register_for_test(&mut registry, object::id(&auth));
 
     let mut c = clock::create_for_testing(scenario.ctx());
@@ -66,7 +66,7 @@ fun test_unauthorized_adapter_cannot_mint() {
     let auth = adapter::init_for_testing(scenario.ctx());
 
     // Note: registry never gets `register_for_test` for this auth.
-    let registry = witnesses::new_registry_for_test(net(), vector::empty(), scenario.ctx());
+    let registry = witnesses::new_registry_for_test(net(), vector[], scenario.ctx());
     let c = clock::create_for_testing(scenario.ctx());
 
     let _vssu = witnesses::mint_verified_ssu(
