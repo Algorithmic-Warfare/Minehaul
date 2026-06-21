@@ -22,6 +22,7 @@ use armature::dao::{Self, DAO};
 use armature::proposal::ExecutionRequest;
 use minehaul_core::witnesses::{Self, VerifiedSsu, VerifiedGate};
 use minehaul_core::errors;
+use minehaul_core::events;
 
 public struct NetworkConfig has store, copy, drop {
     default_reward_collection: ID,
@@ -83,7 +84,15 @@ public fun init_network<P>(
         actions_completed: 0,
     };
     let nid = net.network_id;
+    let max_route_len = config.max_route_len;
+    let permit_ttl_ms = config.permit_ttl_ms;
+    let default_reward_collection = config.default_reward_collection;
+    let default_reward_asset_id = config.default_reward_asset_id;
     dao::init_type_state<P, LogisticNetwork>(dao, net, req);
+    events::emit_network_configured(events::new_network_configured(
+        nid, default_reward_collection, default_reward_asset_id,
+        max_route_len, permit_ttl_ms, false,
+    ));
     nid
 }
 
@@ -115,6 +124,13 @@ public fun register_ssu<P>(
     assert!(!net.registered_ssus.contains(&ssu_id), errors::already_registered());
     let entry = RegisteredSsu { ssu_id, owner_char_id, mode, registered_at_ms: verified_at_ms };
     net.registered_ssus.insert(ssu_id, entry);
+    let (vaulted, lease_expires_at_ms) = match (&mode) {
+        OwnershipMode::Vaulted { cap_id: _ } => (true, 0),
+        OwnershipMode::Leased { lease_id: _, expires_at_ms } => (false, *expires_at_ms),
+    };
+    events::emit_ssu_registered(events::new_ssu_registered(
+        nid, ssu_id, owner_char_id, vaulted, lease_expires_at_ms,
+    ));
 }
 
 public fun unregister_ssu<P>(dao: &mut DAO, ssu_id: ID, req: &ExecutionRequest<P>) {
@@ -129,11 +145,12 @@ public fun register_gate<P>(
     req: &ExecutionRequest<P>,
 ) {
     let nid = dao::id(dao);
-    let (gate_id, vnet, _loc, _ts) = witnesses::consume_verified_gate(vgate);
+    let (gate_id, vnet, location_id, _ts) = witnesses::consume_verified_gate(vgate);
     assert!(vnet == nid, errors::gate_network_mismatch());
     let net = dao::borrow_type_state_mut<P, LogisticNetwork>(dao, req);
     assert!(!net.registered_gates.contains(&gate_id), errors::already_registered());
     net.registered_gates.insert(gate_id);
+    events::emit_gate_registered(events::new_gate_registered(nid, gate_id, location_id));
 }
 
 public fun unregister_gate<P>(dao: &mut DAO, gate_id: ID, req: &ExecutionRequest<P>) {

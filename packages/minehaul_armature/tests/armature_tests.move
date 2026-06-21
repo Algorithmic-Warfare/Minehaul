@@ -1,22 +1,21 @@
 /// Lightweight handler tests for the minehaul_armature proposal layer.
 /// Uses proposal::new_standalone_ticket_for_testing to synthesize
-/// ExecutionTicket<P> directly, skipping the vote + cooldown pipeline
-/// (which is exhaustively tested in armature itself). Focus here is on
-/// the handler bodies in configure_network.move and register_assets.move.
+/// ExecutionTicket<ConfigureLogisticNetwork> directly, skipping the
+/// vote pipeline (exhaustively tested in armature). Focus here is on
+/// handler-body correctness, payload-variant dispatch, and the
+/// payload-witness id-match assertion.
 #[test_only]
 module minehaul_armature::armature_tests;
 
 use sui::object;
 use sui::test_scenario as ts;
-use sui::transfer;
 use std::string;
 use armature::dao::{Self, DAO};
 use armature::governance;
-use armature::proposal::{Self, ProposalConfig};
+use armature::proposal;
 use minehaul_core::network::{Self, NetworkConfig};
 use minehaul_core::witnesses;
 use minehaul_armature::configure_network::{Self, ConfigureLogisticNetwork};
-use minehaul_armature::register_assets;
 
 const CREATOR: address = @0xA1;
 const TREASURY: address = @0xA2;
@@ -27,15 +26,8 @@ const LOC_ADDR: address = @0xFADE;
 
 fun make_config(): NetworkConfig {
     network::new_config(
-        object::id_from_address(@0xC011), // default_reward_collection
-        0,                                 // default_reward_asset_id
-        2_000,                             // min_collateral_ratio_bps (20%)
-        8,                                 // max_route_len
-        16,                                // max_cargo_lines
-        60_000,                            // permit_ttl_ms
-        86_400_000,                        // dispute_window_ms (24h)
-        false,                             // allow_open_marketplace
-        TREASURY,                          // treasury_addr
+        object::id_from_address(@0xC011),
+        0, 2_000, 8, 16, 60_000, 86_400_000, false, TREASURY,
     )
 }
 
@@ -50,33 +42,40 @@ fun setup_dao(scenario: &mut ts::Scenario) {
     );
 }
 
-fun enable_types(scenario: &mut ts::Scenario): ProposalConfig {
+fun enable_types(scenario: &mut ts::Scenario) {
     let cfg = proposal::new_config(5_000, 5_000, 0, 604_800_000, 0, 0);
     ts::next_tx(scenario, CREATOR);
     let mut dao = ts::take_shared<DAO>(scenario);
     dao.test_enable_type(b"ConfigureLogisticNetwork".to_ascii_string(), cfg);
     dao.test_bind_type<ConfigureLogisticNetwork>(b"ConfigureLogisticNetwork".to_ascii_string());
     ts::return_shared(dao);
-    cfg
 }
 
-// === ConfigureLogisticNetwork: lazy init + update ===
+fun synth_ticket(
+    scenario: &mut ts::Scenario,
+    dao_id: ID,
+    proposal_seed: address,
+    payload: ConfigureLogisticNetwork,
+): proposal::ExecutionTicket<ConfigureLogisticNetwork> {
+    let _ = scenario;
+    proposal::new_standalone_ticket_for_testing<ConfigureLogisticNetwork>(
+        dao_id, object::id_from_address(proposal_seed), payload, 100, 100,
+    )
+}
+
+// === SetConfig: lazy init + update ===
 
 #[test]
-fun test_configure_logistic_network_lazy_init() {
+fun test_set_config_lazy_init() {
     let mut scenario = ts::begin(CREATOR);
     setup_dao(&mut scenario);
-    let _cfg = enable_types(&mut scenario);
+    enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
     let mut dao = ts::take_shared<DAO>(&mut scenario);
     let dao_id = dao.id();
-    let proposal_id = object::id_from_address(@0xDEAD);
-
-    let payload = configure_network::new(make_config());
-    let ticket = proposal::new_standalone_ticket_for_testing<ConfigureLogisticNetwork>(
-        dao_id, proposal_id, payload, 100, 100,
-    );
+    let payload = configure_network::new_set_config(make_config());
+    let ticket = synth_ticket(&mut scenario, dao_id, @0xD01, payload);
 
     assert!(!network::has_network<ConfigureLogisticNetwork>(&dao), 0);
     configure_network::execute_configure_logistic_network(&mut dao, ticket, scenario.ctx());
@@ -86,38 +85,31 @@ fun test_configure_logistic_network_lazy_init() {
     assert!(network::network_id(net) == dao_id, 2);
     assert!(network::ssu_count(net) == 0, 3);
     assert!(network::gate_count(net) == 0, 4);
-    assert!(!network::is_paused(net), 5);
-    assert!(network::config_treasury_addr(network::config(net)) == TREASURY, 6);
+    assert!(network::config_treasury_addr(network::config(net)) == TREASURY, 5);
 
     ts::return_shared(dao);
     scenario.end();
 }
 
 #[test]
-fun test_configure_logistic_network_update() {
+fun test_set_config_update_in_place() {
     let mut scenario = ts::begin(CREATOR);
     setup_dao(&mut scenario);
-    let _cfg = enable_types(&mut scenario);
+    enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
     let mut dao = ts::take_shared<DAO>(&mut scenario);
     let dao_id = dao.id();
 
-    // First call: lazy init with treasury = TREASURY
-    let t1 = proposal::new_standalone_ticket_for_testing<ConfigureLogisticNetwork>(
-        dao_id, object::id_from_address(@0xD01), configure_network::new(make_config()),
-        100, 100,
-    );
+    let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
+        configure_network::new_set_config(make_config()));
     configure_network::execute_configure_logistic_network(&mut dao, t1, scenario.ctx());
 
-    // Second call: change treasury_addr
     let new_cfg = network::new_config(
         object::id_from_address(@0xC011), 0, 2_000, 8, 16, 60_000, 86_400_000, true, @0xCAFE,
     );
-    let t2 = proposal::new_standalone_ticket_for_testing<ConfigureLogisticNetwork>(
-        dao_id, object::id_from_address(@0xD02), configure_network::new(new_cfg),
-        100, 100,
-    );
+    let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
+        configure_network::new_set_config(new_cfg));
     configure_network::execute_configure_logistic_network(&mut dao, t2, scenario.ctx());
 
     let net = network::borrow<ConfigureLogisticNetwork>(&dao);
@@ -128,37 +120,48 @@ fun test_configure_logistic_network_update() {
     scenario.end();
 }
 
+#[test, expected_failure(abort_code = 1)] // EWrongOpVariant
+fun test_set_config_aborts_on_wrong_variant() {
+    let mut scenario = ts::begin(CREATOR);
+    setup_dao(&mut scenario);
+    enable_types(&mut scenario);
+
+    ts::next_tx(&mut scenario, CREATOR);
+    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let dao_id = dao.id();
+    // Ticket is for a RegisterGate variant, but caller invokes execute_configure_logistic_network.
+    let t = synth_ticket(&mut scenario, dao_id, @0xD09,
+        configure_network::new_register_gate(object::id_from_address(GATE_ADDR)));
+    configure_network::execute_configure_logistic_network(&mut dao, t, scenario.ctx());
+
+    ts::return_shared(dao);
+    scenario.end();
+}
+
 // === RegisterSsu ===
 
 #[test]
-fun test_register_ssu_full_path() {
+fun test_register_ssu_vaulted_happy_path() {
     let mut scenario = ts::begin(CREATOR);
     setup_dao(&mut scenario);
-    let _cfg = enable_types(&mut scenario);
+    enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
     let mut dao = ts::take_shared<DAO>(&mut scenario);
     let dao_id = dao.id();
 
-    // Initialize the network.
-    let t1 = proposal::new_standalone_ticket_for_testing<ConfigureLogisticNetwork>(
-        dao_id, object::id_from_address(@0xD01), configure_network::new(make_config()),
-        100, 100,
-    );
+    let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
+        configure_network::new_set_config(make_config()));
     configure_network::execute_configure_logistic_network(&mut dao, t1, scenario.ctx());
 
-    // Mint a synthetic VerifiedSsu matching dao_id and register it.
     let ssu_id = object::id_from_address(SSU_ADDR);
     let owner_id = object::id_from_address(OWNER_ADDR);
-    let vssu = witnesses::new_verified_ssu_for_test(ssu_id, dao_id, owner_id, 12_345);
     let cap_id = object::id_from_address(@0xCA9);
-    let intent = register_assets::new_register_ssu_vaulted(ssu_id, cap_id);
+    let vssu = witnesses::new_verified_ssu_for_test(ssu_id, dao_id, owner_id, 12_345);
 
-    let t2 = proposal::new_standalone_ticket_for_testing<ConfigureLogisticNetwork>(
-        dao_id, object::id_from_address(@0xD02), configure_network::new(make_config()),
-        100, 100,
-    );
-    register_assets::execute_register_ssu(&mut dao, t2, intent, vssu, scenario.ctx());
+    let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
+        configure_network::new_register_ssu_vaulted(ssu_id, cap_id));
+    configure_network::execute_register_ssu(&mut dao, t2, vssu, scenario.ctx());
 
     let net = network::borrow<ConfigureLogisticNetwork>(&dao);
     assert!(network::is_ssu_registered(net, ssu_id), 0);
@@ -172,34 +175,116 @@ fun test_register_ssu_full_path() {
     scenario.end();
 }
 
-#[test, expected_failure(abort_code = 4)] // ESsuNetworkMismatch
-fun test_register_ssu_aborts_on_wrong_network() {
+#[test]
+fun test_register_ssu_leased_happy_path() {
     let mut scenario = ts::begin(CREATOR);
     setup_dao(&mut scenario);
-    let _cfg = enable_types(&mut scenario);
+    enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
     let mut dao = ts::take_shared<DAO>(&mut scenario);
     let dao_id = dao.id();
 
-    let t1 = proposal::new_standalone_ticket_for_testing<ConfigureLogisticNetwork>(
-        dao_id, object::id_from_address(@0xD01), configure_network::new(make_config()),
-        100, 100,
-    );
+    let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
+        configure_network::new_set_config(make_config()));
     configure_network::execute_configure_logistic_network(&mut dao, t1, scenario.ctx());
 
     let ssu_id = object::id_from_address(SSU_ADDR);
-    // Witness's network_id is DIFFERENT from dao_id.
+    let lease_id = object::id_from_address(@0x1EA5E);
+    let vssu = witnesses::new_verified_ssu_for_test(
+        ssu_id, dao_id, object::id_from_address(OWNER_ADDR), 100,
+    );
+
+    let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
+        configure_network::new_register_ssu_leased(ssu_id, lease_id, 999_999));
+    configure_network::execute_register_ssu(&mut dao, t2, vssu, scenario.ctx());
+
+    let net = network::borrow<ConfigureLogisticNetwork>(&dao);
+    assert!(network::is_ssu_registered(net, ssu_id), 0);
+
+    ts::return_shared(dao);
+    scenario.end();
+}
+
+#[test, expected_failure(abort_code = 2)] // EIntentWitnessMismatch
+fun test_register_ssu_aborts_on_id_mismatch() {
+    let mut scenario = ts::begin(CREATOR);
+    setup_dao(&mut scenario);
+    enable_types(&mut scenario);
+
+    ts::next_tx(&mut scenario, CREATOR);
+    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let dao_id = dao.id();
+
+    let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
+        configure_network::new_set_config(make_config()));
+    configure_network::execute_configure_logistic_network(&mut dao, t1, scenario.ctx());
+
+    // Payload approves SSU_ADDR; witness presents a different ID.
+    let approved_id = object::id_from_address(SSU_ADDR);
+    let smuggled_id = object::id_from_address(@0xBAD);
+    let vssu = witnesses::new_verified_ssu_for_test(
+        smuggled_id, dao_id, object::id_from_address(OWNER_ADDR), 0,
+    );
+    let cap_id = object::id_from_address(@0xCA9);
+    let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
+        configure_network::new_register_ssu_vaulted(approved_id, cap_id));
+    configure_network::execute_register_ssu(&mut dao, t2, vssu, scenario.ctx());
+
+    ts::return_shared(dao);
+    scenario.end();
+}
+
+#[test, expected_failure(abort_code = 4)] // ESsuNetworkMismatch (core)
+fun test_register_ssu_aborts_on_wrong_network() {
+    let mut scenario = ts::begin(CREATOR);
+    setup_dao(&mut scenario);
+    enable_types(&mut scenario);
+
+    ts::next_tx(&mut scenario, CREATOR);
+    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let dao_id = dao.id();
+
+    let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
+        configure_network::new_set_config(make_config()));
+    configure_network::execute_configure_logistic_network(&mut dao, t1, scenario.ctx());
+
+    let ssu_id = object::id_from_address(SSU_ADDR);
     let wrong_net = object::id_from_address(@0xBAD);
     let vssu = witnesses::new_verified_ssu_for_test(
         ssu_id, wrong_net, object::id_from_address(OWNER_ADDR), 0,
     );
-    let intent = register_assets::new_register_ssu_vaulted(ssu_id, object::id_from_address(@0xCA9));
-    let t2 = proposal::new_standalone_ticket_for_testing<ConfigureLogisticNetwork>(
-        dao_id, object::id_from_address(@0xD02), configure_network::new(make_config()),
-        100, 100,
+    let cap_id = object::id_from_address(@0xCA9);
+    let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
+        configure_network::new_register_ssu_vaulted(ssu_id, cap_id));
+    configure_network::execute_register_ssu(&mut dao, t2, vssu, scenario.ctx());
+
+    ts::return_shared(dao);
+    scenario.end();
+}
+
+#[test, expected_failure(abort_code = 1)] // EWrongOpVariant
+fun test_register_ssu_aborts_on_wrong_variant() {
+    let mut scenario = ts::begin(CREATOR);
+    setup_dao(&mut scenario);
+    enable_types(&mut scenario);
+
+    ts::next_tx(&mut scenario, CREATOR);
+    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let dao_id = dao.id();
+
+    let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
+        configure_network::new_set_config(make_config()));
+    configure_network::execute_configure_logistic_network(&mut dao, t1, scenario.ctx());
+
+    let ssu_id = object::id_from_address(SSU_ADDR);
+    let vssu = witnesses::new_verified_ssu_for_test(
+        ssu_id, dao_id, object::id_from_address(OWNER_ADDR), 0,
     );
-    register_assets::execute_register_ssu(&mut dao, t2, intent, vssu, scenario.ctx());
+    // Ticket is a RegisterGate variant; calling execute_register_ssu must abort.
+    let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
+        configure_network::new_register_gate(ssu_id));
+    configure_network::execute_register_ssu(&mut dao, t2, vssu, scenario.ctx());
 
     ts::return_shared(dao);
     scenario.end();
@@ -208,35 +293,57 @@ fun test_register_ssu_aborts_on_wrong_network() {
 // === RegisterGate ===
 
 #[test]
-fun test_register_gate_full_path() {
+fun test_register_gate_happy_path() {
     let mut scenario = ts::begin(CREATOR);
     setup_dao(&mut scenario);
-    let _cfg = enable_types(&mut scenario);
+    enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
     let mut dao = ts::take_shared<DAO>(&mut scenario);
     let dao_id = dao.id();
 
-    let t1 = proposal::new_standalone_ticket_for_testing<ConfigureLogisticNetwork>(
-        dao_id, object::id_from_address(@0xD01), configure_network::new(make_config()),
-        100, 100,
-    );
+    let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
+        configure_network::new_set_config(make_config()));
     configure_network::execute_configure_logistic_network(&mut dao, t1, scenario.ctx());
 
     let gate_id = object::id_from_address(GATE_ADDR);
-    let loc_id = object::id_from_address(LOC_ADDR);
-    let vgate = witnesses::new_verified_gate_for_test(gate_id, dao_id, loc_id, 100);
-
-    let intent = register_assets::new_register_gate(gate_id);
-    let t2 = proposal::new_standalone_ticket_for_testing<ConfigureLogisticNetwork>(
-        dao_id, object::id_from_address(@0xD02), configure_network::new(make_config()),
-        100, 100,
+    let vgate = witnesses::new_verified_gate_for_test(
+        gate_id, dao_id, object::id_from_address(LOC_ADDR), 100,
     );
-    register_assets::execute_register_gate(&mut dao, t2, intent, vgate);
+    let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
+        configure_network::new_register_gate(gate_id));
+    configure_network::execute_register_gate(&mut dao, t2, vgate);
 
     let net = network::borrow<ConfigureLogisticNetwork>(&dao);
     assert!(network::is_gate_registered(net, gate_id), 0);
     assert!(network::gate_count(net) == 1, 1);
+
+    ts::return_shared(dao);
+    scenario.end();
+}
+
+#[test, expected_failure(abort_code = 2)] // EIntentWitnessMismatch
+fun test_register_gate_aborts_on_id_mismatch() {
+    let mut scenario = ts::begin(CREATOR);
+    setup_dao(&mut scenario);
+    enable_types(&mut scenario);
+
+    ts::next_tx(&mut scenario, CREATOR);
+    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let dao_id = dao.id();
+
+    let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
+        configure_network::new_set_config(make_config()));
+    configure_network::execute_configure_logistic_network(&mut dao, t1, scenario.ctx());
+
+    let approved_id = object::id_from_address(GATE_ADDR);
+    let smuggled_id = object::id_from_address(@0xBAD);
+    let vgate = witnesses::new_verified_gate_for_test(
+        smuggled_id, dao_id, object::id_from_address(LOC_ADDR), 0,
+    );
+    let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
+        configure_network::new_register_gate(approved_id));
+    configure_network::execute_register_gate(&mut dao, t2, vgate);
 
     ts::return_shared(dao);
     scenario.end();
