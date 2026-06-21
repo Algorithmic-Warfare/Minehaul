@@ -84,6 +84,10 @@ public(package) fun payout_success(
 ): (McBalance, McBalance, Option<McBalance>) {
     let mut treasury_payout: McBalance = dof::remove(action_uid, RewardKey {});
     let total = multicoin::value(&treasury_payout);
+    // SAFETY: total * bps fits in u64 as long as total < 2^54 (~1.8e16).
+    // Realistic Multicoin amounts in EVE-Frontier denominations stay well
+    // under this bound; if you ever need >2^54 amounts here, switch the
+    // intermediate to u128.
     let hauler_share = (total * (self.reward_to_hauler_bps as u64)) / BPS_DENOM;
     // multicoin::split aborts on amount==0; mint a zero balance instead so
     // bps=0 (full to treasury) is representable.
@@ -99,14 +103,14 @@ public(package) fun payout_success(
 
     let collateral_opt = if (self.has_collateral) {
         let c: McBalance = dof::remove(action_uid, CollateralKey {});
+        self.collateral_amount = 0;
+        self.has_collateral = false;
         option::some(c)
     } else {
         option::none<McBalance>()
     };
 
     self.reward_amount = 0;
-    self.collateral_amount = 0;
-    self.has_collateral = false;
 
     (hauler_payout, treasury_payout, collateral_opt)
 }
@@ -155,6 +159,7 @@ public(package) fun slash(
     let mut treasury_share: McBalance = dof::remove(action_uid, CollateralKey {});
 
     let coll_total = multicoin::value(&treasury_share);
+    // SAFETY: same u64 overflow bound as payout_success — see comment there.
     let lister_take = (coll_total * (slash_bps as u64)) / BPS_DENOM;
     // Same zero-boundary handling as payout_success.
     let lister_recovery = if (lister_take == 0) {
@@ -178,12 +183,12 @@ public(package) fun slash(
 }
 
 /// Drop the metadata after all DOFs have been removed. Asserts both
-/// cached amounts are zero.
+/// cached amounts are zero and no collateral flag remains.
 public(package) fun destroy_empty(self: Escrow) {
     let Escrow { reward_amount, reward_to_hauler_bps: _, collateral_amount, has_collateral } = self;
-    assert!(reward_amount == 0, errors::insufficient_reward());
-    assert!(collateral_amount == 0, errors::insufficient_collateral());
-    assert!(!has_collateral, errors::insufficient_collateral());
+    assert!(reward_amount == 0, errors::escrow_not_empty());
+    assert!(collateral_amount == 0, errors::escrow_not_empty());
+    assert!(!has_collateral, errors::escrow_not_empty());
 }
 
 // === Views ===

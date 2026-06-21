@@ -374,7 +374,7 @@ fun test_slash_aborts_on_bps_over_max() {
 
 // === destroy_empty ===
 
-#[test, expected_failure(abort_code = 16)] // EInsufficientReward (used as 'non-empty reward')
+#[test, expected_failure(abort_code = 31)] // EEscrowNotEmpty
 fun test_destroy_empty_aborts_if_reward_nonzero() {
     let mut scenario = ts::begin(ADMIN);
     let ctx = scenario.ctx();
