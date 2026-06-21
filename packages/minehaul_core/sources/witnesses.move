@@ -183,3 +183,37 @@ public(package) fun consume_permit(p: MintedPermit): (ID, vector<u8>, address, u
     (gate_id, route_hash, hauler, expires_at_ms)
 }
 
+// === Test-only constructors ===
+// Bypass the AdapterAuth + AdapterRegistry plumbing so unit tests can mint
+// hot potatoes directly. NEVER add non-test-only callers to these.
+
+#[test_only]
+public fun new_verified_ssu_for_test(
+    ssu_id: ID,
+    network_id: ID,
+    owner_char_id: ID,
+    verified_at_ms: u64,
+): VerifiedSsu {
+    VerifiedSsu { ssu_id, network_id, owner_char_id, verified_at_ms }
+}
+
+#[test_only]
+public fun new_verified_gate_for_test(
+    gate_id: ID,
+    network_id: ID,
+    location_id: ID,
+    verified_at_ms: u64,
+): VerifiedGate {
+    VerifiedGate { gate_id, network_id, location_id, verified_at_ms }
+}
+
+#[test_only]
+public fun new_minted_permit_for_test(
+    gate_id: ID,
+    route_hash: vector<u8>,
+    hauler: address,
+    expires_at_ms: u64,
+): MintedPermit {
+    MintedPermit { gate_id, route_hash, hauler, expires_at_ms }
+}
+
