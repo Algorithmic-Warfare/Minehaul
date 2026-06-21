@@ -6,8 +6,12 @@
 /// stores or copies them.
 module minehaul_core::witnesses;
 
-use sui::clock::Clock;
+use sui::object::{Self, ID, UID};
+use sui::tx_context::TxContext;
+use sui::clock::{Self, Clock};
+use sui::transfer;
 use armature::proposal::ExecutionRequest;
+use minehaul_core::errors;
 
 /// Long-lived adapter identity. One per published adapter package. After
 /// registration via `register_adapter`, the holder of `&AdapterAuth` can mint
@@ -22,6 +26,11 @@ public struct AdapterAuth has key, store {
 /// Per-LogisticNetwork list of `AdapterAuth` IDs currently allowed to mint
 /// witnesses for actions on this network. Registered/revoked via
 /// `ExecutionRequest`-gated functions.
+///
+/// INVARIANT: has only `key` — NOT `store`. Combined with the
+/// `ExecutionRequest`-gated `new_registry` constructor, this prevents any
+/// caller from holding an unshared registry off-chain. If a future refactor
+/// adds `store`, audit every callsite that consumes one by value.
 public struct AdapterRegistry has key {
     id: UID,
     network_id: ID,
@@ -65,32 +74,51 @@ public(package) fun new_registry<P>(
     _req: &ExecutionRequest<P>,
     ctx: &mut TxContext,
 ): AdapterRegistry {
-    abort 0
+    AdapterRegistry {
+        id: object::new(ctx),
+        network_id,
+        authorized: vector::empty<ID>(),
+    }
 }
 
-public(package) fun share_registry(registry: AdapterRegistry) {
-    abort 0
+/// Share the AdapterRegistry. Safe to be `public`: the only way to obtain an
+/// unshared registry is `new_registry`, which is gated on `ExecutionRequest`.
+public fun share_registry(registry: AdapterRegistry) {
+    transfer::share_object(registry);
 }
 
-/// Authorize an `AdapterAuth` ID on this network's registry. The auth object
-/// itself stays with the adapter; the registry just records that its ID is
-/// trusted here.
+/// Authorize an `AdapterAuth` on this network's registry. Takes `&AdapterAuth`
+/// (not just an `ID`) so a revoked auth can be rejected statically — once
+/// revoked, an auth is dead globally and re-registering is meaningless.
 public(package) fun register_adapter<P>(
     registry: &mut AdapterRegistry,
-    auth_id: ID,
+    auth: &AdapterAuth,
     _req: &ExecutionRequest<P>,
 ) {
-    abort 0
+    assert!(!auth.revoked, errors::adapter_revoked());
+    let auth_id = object::id(auth);
+    assert!(!registry.authorized.contains(&auth_id), errors::already_registered());
+    registry.authorized.push_back(auth_id);
 }
 
-/// Flip an authorized adapter to revoked. After this, witness mint calls
-/// using `auth` abort with `EAdapterRevoked`.
+/// Flip an authorized adapter to revoked AND remove it from THIS registry.
+/// Note: revocation is terminal and global (`auth.revoked` lives on the auth
+/// object itself), so even if the same auth was registered on OTHER networks'
+/// registries, every mint anywhere will now abort with `EAdapterRevoked`.
+/// Cleaning the stale ID out of every other network's registry is optional
+/// (cosmetic only). Re-registering a revoked auth is now rejected by
+/// `register_adapter`.
 public(package) fun revoke_adapter<P>(
     registry: &mut AdapterRegistry,
     auth: &mut AdapterAuth,
     _req: &ExecutionRequest<P>,
 ) {
-    abort 0
+    auth.revoked = true;
+    let auth_id = object::id(auth);
+    let (found, idx) = registry.authorized.index_of(&auth_id);
+    if (found) {
+        registry.authorized.remove(idx);
+    };
 }
 
 // === Adapter-publish helpers (called by adapter `init` functions) ===
@@ -102,7 +130,12 @@ public fun new_auth(
     world_version: u8,
     ctx: &mut TxContext,
 ): AdapterAuth {
-    abort 0
+    AdapterAuth {
+        id: object::new(ctx),
+        adapter_pkg,
+        world_version,
+        revoked: false,
+    }
 }
 
 // === Witness mint (called by adapter modules) ===
@@ -118,7 +151,13 @@ public fun mint_verified_ssu(
     owner_char_id: ID,
     clock: &Clock,
 ): VerifiedSsu {
-    abort 0
+    assert_auth_authorized(auth, registry);
+    VerifiedSsu {
+        ssu_id,
+        network_id: registry.network_id,
+        owner_char_id,
+        verified_at_ms: clock::timestamp_ms(clock),
+    }
 }
 
 public fun mint_verified_gate(
@@ -128,7 +167,13 @@ public fun mint_verified_gate(
     location_id: ID,
     clock: &Clock,
 ): VerifiedGate {
-    abort 0
+    assert_auth_authorized(auth, registry);
+    VerifiedGate {
+        gate_id,
+        network_id: registry.network_id,
+        location_id,
+        verified_at_ms: clock::timestamp_ms(clock),
+    }
 }
 
 public fun mint_permit(
@@ -140,7 +185,23 @@ public fun mint_permit(
     ttl_ms: u64,
     clock: &Clock,
 ): MintedPermit {
-    abort 0
+    assert_auth_authorized(auth, registry);
+    let expires_at_ms = clock::timestamp_ms(clock) + ttl_ms;
+    MintedPermit {
+        gate_id,
+        route_hash,
+        hauler,
+        expires_at_ms,
+    }
+}
+
+/// Shared mint precondition: auth not revoked AND auth's ID is recorded in
+/// this network's registry. Network binding propagates via the witnesses'
+/// `network_id` field (set from `registry.network_id`).
+fun assert_auth_authorized(auth: &AdapterAuth, registry: &AdapterRegistry) {
+    assert!(!auth.revoked, errors::adapter_revoked());
+    let auth_id = object::id(auth);
+    assert!(registry.authorized.contains(&auth_id), errors::adapter_not_registered());
 }
 
 // === Accessors ===
@@ -215,5 +276,28 @@ public fun new_minted_permit_for_test(
     expires_at_ms: u64,
 ): MintedPermit {
     MintedPermit { gate_id, route_hash, hauler, expires_at_ms }
+}
+
+#[test_only]
+public fun new_registry_for_test(
+    network_id: ID,
+    authorized: vector<ID>,
+    ctx: &mut TxContext,
+): AdapterRegistry {
+    AdapterRegistry {
+        id: object::new(ctx),
+        network_id,
+        authorized,
+    }
+}
+
+#[test_only]
+public fun register_for_test(registry: &mut AdapterRegistry, auth_id: ID) {
+    registry.authorized.push_back(auth_id);
+}
+
+#[test_only]
+public fun set_revoked_for_test(auth: &mut AdapterAuth) {
+    auth.revoked = true;
 }
 

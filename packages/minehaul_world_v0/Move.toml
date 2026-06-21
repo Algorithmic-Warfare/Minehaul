@@ -1,0 +1,24 @@
+[package]
+name = "minehaul_world_v0"
+edition = "2024"
+version = "0.0.1"
+
+# Adapter between minehaul_core and the v0 evefrontier/world-contracts.
+# Owns the verification surface (read world state, mint hot-potato witnesses)
+# but never touches minehaul_core lifecycle state directly — that's gated on
+# ExecutionRequest<P> minted by minehaul_armature.
+#
+# Pin matches warehouse_receipts so that world::storage_unit::StorageUnit
+# and friends are the IDENTICAL Move type across packages.
+[dependencies]
+minehaul_core      = { local = "../minehaul_core" }
+armature           = { git = "https://github.com/loash-industries/armature.git",     subdir = "packages/armature_framework", rev = "4bd6fbaea43fab3967b0c1627b1bea679abc78c3" }
+multicoin          = { git = "https://github.com/Algorithmic-Warfare/multicoin",      subdir = "packages/multicoin",          rev = "c7a97f2f42ffbddbe2d44686cbc9eebd1810b8d6", override = true }
+# warehouse_receipts is intentionally NOT depended on yet — it's needed for
+# the injection/extraction paths (deposit_for_receipt / redeem_receipt) which
+# arrive in a follow-up PR. Adding it now would force its broken-at-HEAD
+# tests into our test runs.
+world              = { git = "https://github.com/evefrontier/world-contracts.git", subdir = "contracts/world", rev = "8e2e97b50fd6bbf605284bcdaae54a33a5475e89" }
+
+[environments]
+testnet_wip = "4c78adac"
