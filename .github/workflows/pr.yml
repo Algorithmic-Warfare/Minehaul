@@ -1,0 +1,70 @@
+name: PR Validation
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+  packages: read
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  # Detect which paths changed so we skip CI on doc-only / ignore-only PRs.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      move: ${{ steps.filter.outputs.move }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            move:
+              - 'packages/**'
+              - '.github/workflows/**'
+
+  # Build and test every Move package under packages/.
+  move-contracts:
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+    if: needs.changes.outputs.move == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Homebrew
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          echo "/home/linuxbrew/.linuxbrew/bin" >> $GITHUB_PATH
+
+      - name: Install Sui CLI
+        run: /home/linuxbrew/.linuxbrew/bin/brew install sui
+
+      - name: Build Move packages
+        run: |
+          for dir in packages/*; do
+            if [ -d "$dir" ] && [ -f "$dir/Move.toml" ]; then
+              echo "::group::Building $dir"
+              sui move build --path "$dir" -e testnet
+              echo "::endgroup::"
+            fi
+          done
+
+      - name: Test Move packages
+        env:
+          SUI_SKIP_SHARED_OBJECTS_VERSION_CHECK: 1
+        run: |
+          for dir in packages/*; do
+            if [ -d "$dir" ] && [ -f "$dir/Move.toml" ]; then
+              echo "::group::Testing $dir"
+              sui move test --path "$dir" -e testnet -i 100000000 --force
+              echo "::endgroup::"
+            fi
+          done

@@ -1,0 +1,28 @@
+# Move build artifacts
+packages/**/build/
+packages/**/Move.lock
+packages/**/.ephemeral.toml
+Pub.localnet.toml
+*.ephemeral.toml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Claude / MCP
+.claude/
+.playwright-mcp/
