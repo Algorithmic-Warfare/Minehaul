@@ -31,6 +31,7 @@ const ERouteTooLong: u64            = 27;
 const ECargoLinesExceedMax: u64     = 28;
 const EAlreadyRegistered: u64       = 29;
 const ENotRegistered: u64           = 30;
+const EEscrowNotEmpty: u64          = 31;
 
 public fun not_network_member(): u64       { ENotNetworkMember }
 public fun network_paused(): u64           { ENetworkPaused }
@@ -62,3 +63,4 @@ public fun route_too_long(): u64           { ERouteTooLong }
 public fun cargo_lines_exceed_max(): u64   { ECargoLinesExceedMax }
 public fun already_registered(): u64       { EAlreadyRegistered }
 public fun not_registered(): u64           { ENotRegistered }
+public fun escrow_not_empty(): u64         { EEscrowNotEmpty }
