@@ -14,7 +14,7 @@ code looks the way it does. For *what* it does, read the module doc comments.
 
 - Copy the section layout of an existing ADR: **Status**, **Context**,
   **Decision**, **Consequences**, and optionally **Open questions**.
-- Number sequentially (`0003-short-slug.md`) and add it to the table above.
+- Number sequentially (`NNNN-short-slug.md`) and add it to the table above.
 - Status is one of `Proposed`, `Accepted`, `Superseded by NNNN`, `Deprecated`.
 - Don't rewrite an accepted ADR when the decision changes. Write a new one that
   supersedes it and update the old one's status line.

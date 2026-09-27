@@ -9,7 +9,7 @@
 The `LogisticNetwork` is stored as a dynamic field on the DAO, under the key
 `ConfigureLogisticNetwork` (ADR 0002, decision 1). armature only allows writes
 to it with an `ExecutionRequest<ConfigureLogisticNetwork>`. Tests on armature
-`4bd6fbae`, `cycle-7` and PR #168 confirm that a request for any other proposal
+`4bd6fbae`, `cycle-7` and armature#168 confirm that a request for any other proposal
 type aborts (ADR 0002, gap 2).
 
 The haul lifecycle (#11) adds proposal types that aren't
@@ -20,7 +20,13 @@ all: `claim_action`, `start_haul`, `record_hop`, `complete_action`,
 `actions_open` / `actions_completed` counters that this lifecycle would have
 to update.
 
-Three facts decide how:
+The scaffold in `action.move` doesn't support this yet:
+- `create_action`, `cancel_action` and `resolve_dispute` are
+  `public(package)`, so `minehaul_armature` can't call them.
+- `create_action` takes `&mut DAO` and a ready-made `Route`, which only core
+  can construct (ADR 0002, gap 3).
+
+Four facts decide how:
 
 1. **The other request types can't write the network.** Any write from the
    haul path would need a second storage slot or a redesign of how the network
@@ -30,9 +36,13 @@ Three facts decide how:
    against `&DAO`. The DAO is then an immutable shared input: never versioned,
    rewritten or locked. That only helps if nothing else in the transaction
    needs `&mut DAO`.
-3. **ADR 0002 promises parallel hauls.** If listing or completing a haul wrote
-   to the DAO, every haul in the network would queue on the DAO's write lock,
-   and so would every unrelated DAO transaction.
+3. **ADR 0002 wants hauls to run in parallel.** If listing or completing a haul
+   wrote to the DAO, every haul in the network would queue on the DAO's write
+   lock, and so would every unrelated DAO transaction.
+4. **Governed entry points must be callable from `minehaul_armature`.** The
+   `network.move` writers already do this: they are `public` and gated on an
+   `ExecutionRequest<P>` for the same DAO. From armature#168 on, only the
+   module that defines `P` can extract that request from a ticket.
 
 ## Decision
 
@@ -50,13 +60,24 @@ Three facts decide how:
    `type_name::with_defining_ids<K>()`, and every later direct call asserts that
    its `K` matches. Without this, a caller could point a haul at a second
    `LogisticNetwork` if a DAO ever had one under another key.
-3. **Remove `actions_open` and `actions_completed` from `LogisticNetwork`.**
+3. **Governed entry points are `public` and gated on `ExecutionRequest<P>`.**
+   `create_action`, `cancel_action` and `resolve_dispute` change from
+   `public(package)` to `public`. Each asserts `req_dao_id(req) == dao.id()`,
+   as the `network.move` writers do. An `ExecutionRequest<P>` only exists for a
+   proposal type the DAO voted to enable, so making these `public` doesn't let
+   arbitrary callers in.
+4. **`create_action` builds its own route.** It takes `vector<VerifiedGate>`
+   instead of a `Route` and calls `route::new_from_verified`, with
+   `max_route_len` from the network config. An empty vector means no transit
+   and uses `route::new_empty`. The route constructors stay
+   `public(package)`, so a `Route` can still only come from verified gates.
+5. **Remove `actions_open` and `actions_completed` from `LogisticNetwork`.**
    Counts come from events (`ActionListed`, `ActionDelivered`,
    `ActionCancelled`, `ActionExpired`, `ActionResolved`), which ADR 0002
    already treats as the history.
-4. **List hauls on the read-only bypass path.** Enable `ListHaulAction` with
+6. **List hauls on the read-only bypass path.** Enable `ListHaulAction` with
    `cooldown_ms = 0` and call `external_execution::ticket_from_cap_readonly`.
-5. **Network changes stay governance-only.** Any future need to change the
+7. **Network changes stay governance-only.** Any future need to change the
    network because of hauling activity goes through a
    `ConfigureLogisticNetwork` proposal.
 
@@ -82,6 +103,9 @@ Three facts decide how:
   lock.
 - Every lifecycle function carries an extra type parameter `K`, and clients
   must pass it.
+- Core exposes more `public` functions. Any proposal type a DAO enables could
+  create, cancel or resolve hauls, so an `EnableProposalType` vote for a
+  foreign type is also a vote on its handler's use of these entry points.
 
 ## Alternatives considered
 

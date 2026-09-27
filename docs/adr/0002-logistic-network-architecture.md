@@ -3,7 +3,7 @@
 - **Status:** Accepted (partially implemented; the haul lifecycle is tracked in #11)
 - **Decided:** 2026-06-21 (PRs #6, #7, #8, #10; design issues #1–#4)
 - **Recorded:** 2026-09-24
-- **Revised:** 2026-09-27 (armature `cycle-7` and PR #168 impact; gap 2 confirmed by tests)
+- **Revised:** 2026-09-27 (armature `cycle-7` and loash-industries/armature#168 impact; gap 2 confirmed by tests)
 
 ## Context
 
@@ -98,7 +98,7 @@ any SSU. Witnesses can't be stored in the payload (they lack `store`), so they
 arrive as transaction arguments, and each handler asserts
 `witness.id == payload.id` (`EIntentWitnessMismatch`).
 
-From armature PR #168 on, `ticket_request` and `discharge` take a
+From armature#168 on, `ticket_request` and `discharge` take a
 `std::internal::Permit<P>`. The compiler only lets the module that *defines*
 `P` create one. A compile probe confirmed that even a second module inside
 `minehaul_armature` can't spend a `ConfigureLogisticNetwork` ticket (error
@@ -147,8 +147,9 @@ progression is: members only, then trusted outsiders, then an open market.
 ### 6. One shared `HaulAction` object per job
 
 [action.move](../../packages/minehaul_core/sources/action.move) gives each job
-its own shared object, so concurrent hauls don't contend on the network or the
-DAO.
+its own shared object, so concurrent hauls don't contend with each other on the
+same object. Keeping the DAO out of the haul path too depends on ADR 0003: the
+current `create_action` stub still takes `&mut DAO`.
 
 ```move
 public enum ActionKind {
@@ -169,7 +170,8 @@ warehouse-receipts / armature vault pattern:
 - the hauler's `HaulerCap` (route cursor, permits remaining, deadline):
   `HaulerCapKey { hauler }`
 
-Lifecycle:
+Planned lifecycle. Every transition below is still `abort 0` and is specified
+in #11:
 
 ```mermaid
 stateDiagram-v2
@@ -233,8 +235,8 @@ is no on-chain history store.
 
 - Governance, world verification and protocol rules are separate, and each can
   be tested on its own.
-- Hauls run in parallel. The network/DAO object is only written by governance
-  operations.
+- Hauls don't contend with each other: each job is its own object. With ADR
+  0003 accepted, the DAO is also only written by governance operations.
 - Voter-visible intent is binding: an approved ticket can't be redirected to a
   different SSU or gate.
 - Cargo is ordinary multicoin, so a trade settled on Trinary Exchange can be
@@ -265,7 +267,7 @@ Found while recording this ADR; each needs an issue or a follow-up ADR.
    `borrow_type_state` needs no request. The storage key would have to be
    passed as a second type parameter (e.g. `create_action<P, K>`).
 
-   *Confirmed by tests* on armature `4bd6fbae`, `cycle-7` and PR #168. After
+   *Confirmed by tests* on armature `4bd6fbae`, `cycle-7` and armature#168. After
    the network is initialised under `ConfigureLogisticNetwork`:
    - `has_network<OtherType>` returns `false`;
    - `set_paused<OtherType>` with a valid `ExecutionRequest<OtherType>` for the
@@ -274,12 +276,24 @@ Found while recording this ADR; each needs an issue or a follow-up ADR.
    The type-state API is identical in all three versions, so the armature
    redeploy doesn't change this. **Proposed resolution: ADR 0003** (haul
    actions never write network state).
-3. **There's no production path to create or populate an `AdapterRegistry`.**
-   `witnesses::new_registry`, `register_adapter` and `revoke_adapter` are
-   `public(package)`, but nothing in core calls them. `init_network` doesn't
-   create a registry, despite what the doc comment on `new_registry` says.
-   armature can't reach them either. Today only `#[test_only]` constructors
-   build registries, so no adapter can be authorised on a real network yet.
+3. **Core entry points that armature needs are package-private.** Move's
+   `public(package)` means only `minehaul_core` itself can call these, so
+   `minehaul_armature` can't:
+   - **Adapter registry.** `witnesses::new_registry`, `register_adapter` and
+     `revoke_adapter`. Nothing in core calls them either: `init_network`
+     doesn't create a registry, despite the doc comment on `new_registry`.
+     Only `#[test_only]` constructors build registries, so no adapter can be
+     authorised on a real network yet.
+   - **Governed haul entry points.** `action::create_action`, `cancel_action`
+     and `resolve_dispute` (`action.move:95`, `:173`, `:204`). These are the
+     calls the planned `ListHaulAction` / `ResolveDispute` handlers make (#4).
+   - **Route construction.** `route::new_from_verified` and `new_empty`
+     (`route.move:36`, `:62`). Nothing outside core can build the `Route` that
+     `create_action` takes as a parameter.
+
+   The `network.move` writers already show the pattern to follow: `public`,
+   gated on an `ExecutionRequest<P>` for the same DAO. ADR 0003 applies it to
+   the haul entry points.
 4. **No gate adapter exists.** `minehaul_world_v0` only verifies SSUs.
    Nothing in production mints `VerifiedGate` or `MintedPermit`, so gate
    registration and multi-hop routes can't be exercised against
@@ -288,11 +302,11 @@ Found while recording this ADR; each needs an issue or a follow-up ADR.
    character without checking that it owns the SSU (TODO #9). It must not be
    used for authorisation until the binding is enforced.
 
-## Impact of armature `cycle-7` and PR #168
+## Impact of armature `cycle-7` and armature#168
 
 Reviewed 2026-09-27. None of the decisions above change, but these rules
 apply to everything still to be built. ADR 0001 has the compatibility test
-results. PR #168 is still open, so names in the last three items may change.
+results. armature#168 is still open, so names in the last three items may change.
 
 - **Membership (ARMATURE-13/14).** `is_governance_member` keeps its signature
   but now means the member's latest tenure is open. A removed member loses the
@@ -313,7 +327,7 @@ results. PR #168 is still open, so names in the last three items may change.
   calls that a freeze doesn't reach. Rule:
   - **freeze `ListHaulAction`** to stop new listings;
   - **set `paused`** to stop hauls already in progress.
-- **`ListHaulAction` is one module (PR #168).** Because of the `Permit` rule,
+- **`ListHaulAction` is one module (armature#168).** Because of the `Permit` rule,
   the payload, the entry point that creates the bypass ticket, and the handler
   must live in one module. The DAO's `ExternalExecutionCap` is only its
   opt-in, not a credential. The entry point's own membership and network check
@@ -326,7 +340,7 @@ results. PR #168 is still open, so names in the last three items may change.
 
   Use `ticket_from_cap_readonly` (for a type with no cooldown). That keeps
   the DAO an immutable input, which is only possible under ADR 0003.
-- **Permission bits (PR #168).** Proposal types hold no permission bits unless
+- **Permission bits (armature#168).** Proposal types hold no permission bits unless
   granted.
   - `ConfigureLogisticNetwork` needs none: it only touches its own type-state.
   - Vaulted SSUs (decision 4) need a type holding `VAULT_STORE` to deposit the
@@ -354,4 +368,4 @@ results. PR #168 is still open, so names in the last three items may change.
 - **Trinary Exchange delivery.** The intended composition is: TriEx settles a
   trade, `BalanceManager::withdraw_multicoin_with_cap` releases the goods, and
   a `Transfer` action is listed through `ListHaulAction`. This depends on gaps
-  1–2 and on ADR 0001's multicoin alignment.
+  1–3 and on ADR 0001's multicoin alignment.

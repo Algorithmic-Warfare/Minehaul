@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Decided:** 2026-06-21 (PRs #6, #7, #8, #10)
 - **Recorded:** 2026-09-24
-- **Revised:** 2026-09-27 (armature `cycle-7` and PR #168 compatibility check)
+- **Revised:** 2026-09-27 (armature `cycle-7` and loash-industries/armature#168 compatibility check)
 
 ## Context
 
@@ -120,8 +120,9 @@ every `packages/*` with `-e testnet`.
 
 **Negative / costs**
 
-- Every pin bump has to be repeated in three `Move.toml` files and followed by
-  regenerating three `Move.lock` files.
+- An armature or multicoin bump has to be repeated in all three `Move.toml`
+  files, and every bump means regenerating the affected `Move.lock` files.
+  (`world` is only declared in `minehaul_world_v0`.)
 - Core can't check world facts itself. It trusts whichever adapter is
   registered, so adapter authorisation is security-critical (ADR 0002).
 - Type identity ties us to what other packages link. **Any package that
@@ -154,9 +155,9 @@ or integrating:
 3. **armature has a breaking redeploy in progress.** `main` has only five
    commits since our pin (deploy config and docs; no framework code). The
    framework changes are on the `cycle-7` branch:
-   - PRs #162–#167 (ARMATURE-9 to ARMATURE-15), merged 24–26 Sep 2026: a gas
+   - loash-industries/armature#162–#167 (ARMATURE-9 to ARMATURE-15), merged 24–26 Sep 2026: a gas
      overhaul, not upgrade-compatible with existing DAOs.
-   - PR #168 (ROAD-39, type permissions), still open, built on top.
+   - armature#168 (ROAD-39, type permissions), still open, built on top.
 
    `cycle-7` isn't published yet: its `Published.toml` still lists the old
    addresses. **Stay on `4bd6fbae` until the redeploy is published**, then
@@ -175,7 +176,7 @@ ran on scratch copies; the repo's manifests are unchanged.
 |---|---|---|---|---|
 | `4bd6fbae` (current pin) | 44/44 | 4/4 | 10/10 | none |
 | `cycle-7` `929bb912` | 44/44 | 4/4 | 10/10 after fix | **tests only**: `dao.test_bind_type` was removed (ARMATURE-9). Replace the `test_enable_type` + `test_bind_type` pair with a single `dao.test_enable_type<ConfigureLogisticNetwork>(key, cfg)`. |
-| PR #168 `6ed2b77b` | 44/44 | 4/4 | 10/10 after fix | the test fix above, **plus source**: `ticket_request` and `discharge` take a `Permit<P>`. In `configure_network.move`, add `use std::internal;` and pass `internal::permit()` to all six calls. |
+| armature#168 `6ed2b77b` | 44/44 | 4/4 | 10/10 after fix | the test fix above, **plus source**: `ticket_request` and `discharge` take a `Permit<P>`. In `configure_network.move`, add `use std::internal;` and pass `internal::permit()` to all six calls. |
 
 `minehaul_core` and `minehaul_world_v0` need no changes for either rev. Every
 armature API they use has the same signature: the type-state accessors,
