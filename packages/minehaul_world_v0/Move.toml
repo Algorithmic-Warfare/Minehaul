@@ -18,7 +18,7 @@ multicoin          = { git = "https://github.com/Algorithmic-Warfare/multicoin",
 # the injection/extraction paths (deposit_for_receipt / redeem_receipt) which
 # arrive in a follow-up PR. Adding it now would force its broken-at-HEAD
 # tests into our test runs.
-world              = { git = "https://github.com/evefrontier/world-contracts.git", subdir = "contracts/world", rev = "8e2e97b50fd6bbf605284bcdaae54a33a5475e89" }
+world              = { git = "https://github.com/evefrontier/world-contracts.git", subdir = "contracts/world", rev = "8eb197e4573275d6f45b0da2c69ee793487a49fd" }
 
 [environments]
 testnet_wip = "4c78adac"

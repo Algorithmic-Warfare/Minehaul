@@ -47,7 +47,7 @@ fun test_authorized_adapter_can_mint_ssu_witness() {
 
     let ssu_id = object::id_from_address(@0xF00D);
     let owner_id = object::id_from_address(@0x123);
-    let vssu = witnesses::mint_verified_ssu(&auth, &registry, ssu_id, owner_id, &c);
+    let vssu = adapter::mint_ssu(&auth, &registry, ssu_id, owner_id, &c);
 
     assert!(witnesses::vssu_id(&vssu) == ssu_id, 0);
     assert!(witnesses::vssu_network(&vssu) == net(), 1);
@@ -69,7 +69,7 @@ fun test_unauthorized_adapter_cannot_mint() {
     let registry = witnesses::new_registry_for_test(net(), vector[], scenario.ctx());
     let c = clock::create_for_testing(scenario.ctx());
 
-    let _vssu = witnesses::mint_verified_ssu(
+    let _vssu = adapter::mint_ssu(
         &auth, &registry,
         object::id_from_address(@0xF00D),
         object::id_from_address(@0x123),

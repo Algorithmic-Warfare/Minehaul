@@ -21,13 +21,11 @@ const CREATOR: address = @0xA1;
 const TREASURY: address = @0xA2;
 const SSU_ADDR: address = @0xF00D;
 const OWNER_ADDR: address = @0x123;
-const GATE_ADDR: address = @0xB00B;
-const LOC_ADDR: address = @0xFADE;
 
 fun make_config(): NetworkConfig {
     network::new_config(
         object::id_from_address(@0xC011),
-        0, 2_000, 8, 16, 60_000, 86_400_000, false, TREASURY,
+        0, 2_000, 16, 86_400_000, false, TREASURY,
     )
 }
 
@@ -84,8 +82,7 @@ fun test_set_config_lazy_init() {
     let net = network::borrow<ConfigureLogisticNetwork>(&dao);
     assert!(network::network_id(net) == dao_id, 2);
     assert!(network::ssu_count(net) == 0, 3);
-    assert!(network::gate_count(net) == 0, 4);
-    assert!(network::config_treasury_addr(network::config(net)) == TREASURY, 5);
+    assert!(network::config_treasury_addr(network::config(net)) == TREASURY, 4);
 
     ts::return_shared(dao);
     scenario.end();
@@ -106,7 +103,7 @@ fun test_set_config_update_in_place() {
     configure_network::execute_configure_logistic_network(&mut dao, t1, scenario.ctx());
 
     let new_cfg = network::new_config(
-        object::id_from_address(@0xC011), 0, 2_000, 8, 16, 60_000, 86_400_000, true, @0xCAFE,
+        object::id_from_address(@0xC011), 0, 2_000, 16, 86_400_000, true, @0xCAFE,
     );
     let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
         configure_network::new_set_config(new_cfg));
@@ -129,9 +126,9 @@ fun test_set_config_aborts_on_wrong_variant() {
     ts::next_tx(&mut scenario, CREATOR);
     let mut dao = ts::take_shared<DAO>(&mut scenario);
     let dao_id = dao.id();
-    // Ticket is for a RegisterGate variant, but caller invokes execute_configure_logistic_network.
+    // Ticket is for SetPaused, but caller invokes execute_configure_logistic_network.
     let t = synth_ticket(&mut scenario, dao_id, @0xD09,
-        configure_network::new_register_gate(object::id_from_address(GATE_ADDR)));
+        configure_network::new_set_paused(true));
     configure_network::execute_configure_logistic_network(&mut dao, t, scenario.ctx());
 
     ts::return_shared(dao);
@@ -281,69 +278,10 @@ fun test_register_ssu_aborts_on_wrong_variant() {
     let vssu = witnesses::new_verified_ssu_for_test(
         ssu_id, dao_id, object::id_from_address(OWNER_ADDR), 0,
     );
-    // Ticket is a RegisterGate variant; calling execute_register_ssu must abort.
+    // Ticket is a SetPaused variant; calling execute_register_ssu must abort.
     let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
-        configure_network::new_register_gate(ssu_id));
+        configure_network::new_set_paused(true));
     configure_network::execute_register_ssu(&mut dao, t2, vssu, scenario.ctx());
-
-    ts::return_shared(dao);
-    scenario.end();
-}
-
-// === RegisterGate ===
-
-#[test]
-fun test_register_gate_happy_path() {
-    let mut scenario = ts::begin(CREATOR);
-    setup_dao(&mut scenario);
-    enable_types(&mut scenario);
-
-    ts::next_tx(&mut scenario, CREATOR);
-    let mut dao = ts::take_shared<DAO>(&mut scenario);
-    let dao_id = dao.id();
-
-    let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
-        configure_network::new_set_config(make_config()));
-    configure_network::execute_configure_logistic_network(&mut dao, t1, scenario.ctx());
-
-    let gate_id = object::id_from_address(GATE_ADDR);
-    let vgate = witnesses::new_verified_gate_for_test(
-        gate_id, dao_id, object::id_from_address(LOC_ADDR), 100,
-    );
-    let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
-        configure_network::new_register_gate(gate_id));
-    configure_network::execute_register_gate(&mut dao, t2, vgate);
-
-    let net = network::borrow<ConfigureLogisticNetwork>(&dao);
-    assert!(network::is_gate_registered(net, gate_id), 0);
-    assert!(network::gate_count(net) == 1, 1);
-
-    ts::return_shared(dao);
-    scenario.end();
-}
-
-#[test, expected_failure(abort_code = 2)] // EIntentWitnessMismatch
-fun test_register_gate_aborts_on_id_mismatch() {
-    let mut scenario = ts::begin(CREATOR);
-    setup_dao(&mut scenario);
-    enable_types(&mut scenario);
-
-    ts::next_tx(&mut scenario, CREATOR);
-    let mut dao = ts::take_shared<DAO>(&mut scenario);
-    let dao_id = dao.id();
-
-    let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
-        configure_network::new_set_config(make_config()));
-    configure_network::execute_configure_logistic_network(&mut dao, t1, scenario.ctx());
-
-    let approved_id = object::id_from_address(GATE_ADDR);
-    let smuggled_id = object::id_from_address(@0xBAD);
-    let vgate = witnesses::new_verified_gate_for_test(
-        smuggled_id, dao_id, object::id_from_address(LOC_ADDR), 0,
-    );
-    let t2 = synth_ticket(&mut scenario, dao_id, @0xD02,
-        configure_network::new_register_gate(approved_id));
-    configure_network::execute_register_gate(&mut dao, t2, vgate);
 
     ts::return_shared(dao);
     scenario.end();

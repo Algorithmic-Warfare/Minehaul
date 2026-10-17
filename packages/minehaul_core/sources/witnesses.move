@@ -1,23 +1,24 @@
-/// Hot-potato witnesses and adapter registry. The only modules that mint
-/// `VerifiedSsu`, `VerifiedGate`, or `MintedPermit` are the world adapter
-/// packages (minehaul_world_v0 / minehaul_world_v1). Adapters identify
-/// themselves with an `AdapterAuth` registered into a per-LogisticNetwork
-/// `AdapterRegistry`. Core consumes the hot potatoes in-place; it never
-/// stores or copies them.
+/// Transaction-local proofs and adapter registry. Minting requires both an
+/// authorized capability and a compiler-issued permit from the module defining
+/// its adapter marker. SSU proofs can be dropped, but never stored or copied.
+/// Delivery obligations and proofs have no abilities at all.
 module minehaul_core::witnesses;
 
+use std::internal::Permit;
+use std::type_name::{Self, TypeName};
 use sui::object::{Self, ID, UID};
 use sui::tx_context::TxContext;
 use sui::clock::{Self, Clock};
 use sui::transfer;
 use armature::proposal::ExecutionRequest;
-use minehaul_core::errors;
+use minehaul_core::{errors, events};
 
-/// Long-lived adapter identity. One per published adapter package. After
-/// registration via `register_adapter`, the holder of `&AdapterAuth` can mint
-/// the verification witnesses below for as long as `revoked == false`.
+/// Long-lived adapter identity, bound to the defining module of its marker.
+/// The capability alone does not permit minting proofs. Adapter packages
+/// normally construct one in init and register its exact object ID.
 public struct AdapterAuth has key, store {
     id: UID,
+    adapter_type: TypeName,
     adapter_pkg: address,
     world_version: u8,
     revoked: bool,
@@ -35,34 +36,17 @@ public struct AdapterRegistry has key {
     id: UID,
     network_id: ID,
     authorized: vector<ID>,
+    governance_type: Option<TypeName>,
 }
 
-/// Proof that the adapter has confirmed `ssu_id` is a deployed, online,
-/// owner-verified Smart Storage Unit at this point in the tx. Cannot be
-/// stored; must be consumed same-tx.
+/// Adapter-verified SSU identity and capability authorization. Operational
+/// state and character-binding guarantees depend on the adapter. This proof
+/// can be discarded but cannot escape the transaction or be copied.
 public struct VerifiedSsu has drop {
     ssu_id: ID,
     network_id: ID,
     owner_char_id: ID,
     verified_at_ms: u64,
-}
-
-/// Proof that `gate_id` is a deployed, online, in-network Gate. Hot potato.
-public struct VerifiedGate has drop {
-    gate_id: ID,
-    network_id: ID,
-    location_id: ID,
-    verified_at_ms: u64,
-}
-
-/// Proof that the adapter has minted (and the world-contracts gate will
-/// honor) one jump permit through `gate_id`, bound to a specific route and
-/// hauler. Hot potato; consumed by `route::verify_hop`.
-public struct MintedPermit has drop {
-    gate_id: ID,
-    route_hash: vector<u8>,
-    hauler: address,
-    expires_at_ms: u64,
 }
 
 // === Registry lifecycle (ExecutionRequest-gated) ===
@@ -71,13 +55,15 @@ public struct MintedPermit has drop {
 /// init by `network::init_network`.
 public(package) fun new_registry<P>(
     network_id: ID,
-    _req: &ExecutionRequest<P>,
+    req: &ExecutionRequest<P>,
     ctx: &mut TxContext,
 ): AdapterRegistry {
+    assert!(req.req_dao_id() == network_id, errors::wrong_dao());
     AdapterRegistry {
         id: object::new(ctx),
         network_id,
-        authorized: vector::empty<ID>(),
+        authorized: vector[],
+        governance_type: option::some(type_name::with_defining_ids<P>()),
     }
 }
 
@@ -90,15 +76,20 @@ public fun share_registry(registry: AdapterRegistry) {
 /// Authorize an `AdapterAuth` on this network's registry. Takes `&AdapterAuth`
 /// (not just an `ID`) so a revoked auth can be rejected statically — once
 /// revoked, an auth is dead globally and re-registering is meaningless.
-public(package) fun register_adapter<P>(
+public fun register_adapter<P>(
+    _permit: Permit<P>,
     registry: &mut AdapterRegistry,
     auth: &AdapterAuth,
-    _req: &ExecutionRequest<P>,
+    req: &ExecutionRequest<P>,
 ) {
+    assert_registry_request(registry, req);
     assert!(!auth.revoked, errors::adapter_revoked());
     let auth_id = object::id(auth);
     assert!(!registry.authorized.contains(&auth_id), errors::already_registered());
     registry.authorized.push_back(auth_id);
+    events::emit_adapter_registered(events::new_adapter_registered(
+        registry.network_id, auth_id, auth.adapter_pkg, auth.world_version,
+    ));
 }
 
 /// Flip an authorized adapter to revoked AND remove it from THIS registry.
@@ -108,30 +99,34 @@ public(package) fun register_adapter<P>(
 /// Cleaning the stale ID out of every other network's registry is optional
 /// (cosmetic only). Re-registering a revoked auth is now rejected by
 /// `register_adapter`.
-public(package) fun revoke_adapter<P>(
+public fun revoke_adapter<P>(
+    _permit: Permit<P>,
     registry: &mut AdapterRegistry,
     auth: &mut AdapterAuth,
-    _req: &ExecutionRequest<P>,
+    req: &ExecutionRequest<P>,
 ) {
-    auth.revoked = true;
+    assert_registry_request(registry, req);
     let auth_id = object::id(auth);
     let (found, idx) = registry.authorized.index_of(&auth_id);
-    if (found) {
-        registry.authorized.remove(idx);
-    };
+    assert!(found, errors::adapter_not_registered());
+    auth.revoked = true;
+    registry.authorized.remove(idx);
+    events::emit_adapter_revoked(events::new_adapter_revoked(registry.network_id, auth_id));
 }
 
 // === Adapter-publish helpers (called by adapter `init` functions) ===
 
 /// Construct a fresh `AdapterAuth`. The adapter's `init` calls this once and
 /// transfers the result to itself (or a DAO-controlled custodian).
-public fun new_auth(
+public fun new_auth<A>(
+    _permit: Permit<A>,
     adapter_pkg: address,
     world_version: u8,
     ctx: &mut TxContext,
 ): AdapterAuth {
     AdapterAuth {
         id: object::new(ctx),
+        adapter_type: type_name::with_defining_ids<A>(),
         adapter_pkg,
         world_version,
         revoked: false,
@@ -144,14 +139,15 @@ public fun new_auth(
 // passes `errors::EAdapterRevoked` / `EAdapterNotRegistered` /
 // `EAdapterNetworkMismatch` if the auth is invalid.
 
-public fun mint_verified_ssu(
+public fun mint_verified_ssu<A>(
+    _permit: Permit<A>,
     auth: &AdapterAuth,
     registry: &AdapterRegistry,
     ssu_id: ID,
     owner_char_id: ID,
     clock: &Clock,
 ): VerifiedSsu {
-    assert_auth_authorized(auth, registry);
+    assert_auth_authorized<A>(auth, registry);
     VerifiedSsu {
         ssu_id,
         network_id: registry.network_id,
@@ -160,54 +156,21 @@ public fun mint_verified_ssu(
     }
 }
 
-public fun mint_verified_gate(
-    auth: &AdapterAuth,
-    registry: &AdapterRegistry,
-    gate_id: ID,
-    location_id: ID,
-    clock: &Clock,
-): VerifiedGate {
-    assert_auth_authorized(auth, registry);
-    VerifiedGate {
-        gate_id,
-        network_id: registry.network_id,
-        location_id,
-        verified_at_ms: clock::timestamp_ms(clock),
-    }
-}
-
-public fun mint_permit(
-    auth: &AdapterAuth,
-    registry: &AdapterRegistry,
-    gate_id: ID,
-    route_hash: vector<u8>,
-    hauler: address,
-    ttl_ms: u64,
-    clock: &Clock,
-): MintedPermit {
-    assert_auth_authorized(auth, registry);
-    let expires_at_ms = clock::timestamp_ms(clock) + ttl_ms;
-    MintedPermit {
-        gate_id,
-        route_hash,
-        hauler,
-        expires_at_ms,
-    }
-}
-
 /// Shared mint precondition: auth not revoked AND auth's ID is recorded in
 /// this network's registry. Network binding propagates via the witnesses'
 /// `network_id` field (set from `registry.network_id`).
-fun assert_auth_authorized(auth: &AdapterAuth, registry: &AdapterRegistry) {
+fun assert_auth_authorized<A>(auth: &AdapterAuth, registry: &AdapterRegistry) {
     assert!(!auth.revoked, errors::adapter_revoked());
     let auth_id = object::id(auth);
     assert!(registry.authorized.contains(&auth_id), errors::adapter_not_registered());
+    assert!(auth.adapter_type == type_name::with_defining_ids<A>(), errors::adapter_not_registered());
 }
 
 // === Accessors ===
 
 public fun auth_revoked(self: &AdapterAuth): bool { self.revoked }
 public fun auth_world_version(self: &AdapterAuth): u8 { self.world_version }
+public fun auth_adapter_type(self: &AdapterAuth): TypeName { self.adapter_type }
 public fun auth_adapter_pkg(self: &AdapterAuth): address { self.adapter_pkg }
 
 public fun registry_network_id(self: &AdapterRegistry): ID { self.network_id }
@@ -218,30 +181,11 @@ public fun vssu_network(v: &VerifiedSsu): ID { v.network_id }
 public fun vssu_owner(v: &VerifiedSsu): ID { v.owner_char_id }
 public fun vssu_verified_at_ms(v: &VerifiedSsu): u64 { v.verified_at_ms }
 
-public fun vgate_id(v: &VerifiedGate): ID { v.gate_id }
-public fun vgate_network(v: &VerifiedGate): ID { v.network_id }
-public fun vgate_location(v: &VerifiedGate): ID { v.location_id }
-
-public fun permit_gate(p: &MintedPermit): ID { p.gate_id }
-public fun permit_route_hash(p: &MintedPermit): &vector<u8> { &p.route_hash }
-public fun permit_hauler(p: &MintedPermit): address { p.hauler }
-public fun permit_expires_at_ms(p: &MintedPermit): u64 { p.expires_at_ms }
-
-/// Destructure consumers — called by `route` / `action` modules to read
+/// Destructure consumer — called by `network` / `action` modules to read
 /// fields out of the hot potato at the moment they consume it.
 public(package) fun consume_verified_ssu(v: VerifiedSsu): (ID, ID, ID, u64) {
     let VerifiedSsu { ssu_id, network_id, owner_char_id, verified_at_ms } = v;
     (ssu_id, network_id, owner_char_id, verified_at_ms)
-}
-
-public(package) fun consume_verified_gate(v: VerifiedGate): (ID, ID, ID, u64) {
-    let VerifiedGate { gate_id, network_id, location_id, verified_at_ms } = v;
-    (gate_id, network_id, location_id, verified_at_ms)
-}
-
-public(package) fun consume_permit(p: MintedPermit): (ID, vector<u8>, address, u64) {
-    let MintedPermit { gate_id, route_hash, hauler, expires_at_ms } = p;
-    (gate_id, route_hash, hauler, expires_at_ms)
 }
 
 // === Test-only constructors ===
@@ -259,26 +203,6 @@ public fun new_verified_ssu_for_test(
 }
 
 #[test_only]
-public fun new_verified_gate_for_test(
-    gate_id: ID,
-    network_id: ID,
-    location_id: ID,
-    verified_at_ms: u64,
-): VerifiedGate {
-    VerifiedGate { gate_id, network_id, location_id, verified_at_ms }
-}
-
-#[test_only]
-public fun new_minted_permit_for_test(
-    gate_id: ID,
-    route_hash: vector<u8>,
-    hauler: address,
-    expires_at_ms: u64,
-): MintedPermit {
-    MintedPermit { gate_id, route_hash, hauler, expires_at_ms }
-}
-
-#[test_only]
 public fun new_registry_for_test(
     network_id: ID,
     authorized: vector<ID>,
@@ -288,6 +212,7 @@ public fun new_registry_for_test(
         id: object::new(ctx),
         network_id,
         authorized,
+        governance_type: option::none(),
     }
 }
 
@@ -301,3 +226,55 @@ public fun set_revoked_for_test(auth: &mut AdapterAuth) {
     auth.revoked = true;
 }
 
+fun assert_registry_request<P>(registry: &AdapterRegistry, req: &ExecutionRequest<P>) {
+    assert!(registry.network_id == req.req_dao_id(), errors::wrong_dao());
+    if (registry.governance_type.is_some()) {
+        assert!(*registry.governance_type.borrow() == type_name::with_defining_ids<P>(), errors::wrong_dao());
+    };
+}
+
+/// Neither value has abilities: withdrawing cargo must end in adapter-verified
+/// delivery and core completion in the same transaction, or the transaction aborts.
+public struct DeliveryRequest {
+    action_id: ID,
+    network_id: ID,
+    registry_id: ID,
+    destination: ID,
+    hauler: address,
+    manifest_hash: vector<u8>,
+}
+
+public struct VerifiedDelivery {
+    request: DeliveryRequest,
+}
+
+public(package) fun new_delivery_request(
+    action_id: ID, network_id: ID, registry_id: ID, destination: ID,
+    hauler: address, manifest_hash: vector<u8>,
+): DeliveryRequest {
+    DeliveryRequest { action_id, network_id, registry_id, destination, hauler, manifest_hash }
+}
+
+/// Only the defining module of the registered adapter's marker can attest.
+/// It MUST verify actual delivery of the entire manifest before calling this.
+/// An SSU ownership/existence check alone is insufficient.
+public fun certify_delivery<A>(
+    _permit: Permit<A>, auth: &AdapterAuth, registry: &AdapterRegistry,
+    request: DeliveryRequest,
+): VerifiedDelivery {
+    assert_auth_authorized<A>(auth, registry);
+    assert!(request.network_id == registry.network_id
+        && request.registry_id == object::id(registry), errors::adapter_network_mismatch());
+    VerifiedDelivery { request }
+}
+
+public fun delivery_action(r: &DeliveryRequest): ID { r.action_id }
+public fun delivery_destination(r: &DeliveryRequest): ID { r.destination }
+public fun delivery_hauler(r: &DeliveryRequest): address { r.hauler }
+public fun delivery_manifest_hash(r: &DeliveryRequest): &vector<u8> { &r.manifest_hash }
+
+public(package) fun consume_delivery(proof: VerifiedDelivery): (ID, ID, ID, address, vector<u8>) {
+    let VerifiedDelivery { request } = proof;
+    let DeliveryRequest { action_id, network_id, registry_id: _, destination, hauler, manifest_hash } = request;
+    (action_id, network_id, destination, hauler, manifest_hash)
+}
