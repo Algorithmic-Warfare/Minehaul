@@ -74,8 +74,9 @@ public fun share_registry(registry: AdapterRegistry) {
 }
 
 /// Authorize an `AdapterAuth` on this network's registry. Takes `&AdapterAuth`
-/// (not just an `ID`) so a revoked auth can be rejected statically — once
-/// revoked, an auth is dead globally and re-registering is meaningless.
+/// (not just an `ID`) so a retired auth can be rejected statically — once
+/// retired by its adapter, an auth is dead globally and registering it is
+/// meaningless.
 public fun register_adapter<P>(
     _permit: Permit<P>,
     registry: &mut AdapterRegistry,
@@ -92,26 +93,33 @@ public fun register_adapter<P>(
     ));
 }
 
-/// Flip an authorized adapter to revoked AND remove it from THIS registry.
-/// Note: revocation is terminal and global (`auth.revoked` lives on the auth
-/// object itself), so even if the same auth was registered on OTHER networks'
-/// registries, every mint anywhere will now abort with `EAdapterRevoked`.
-/// Cleaning the stale ID out of every other network's registry is optional
-/// (cosmetic only). Re-registering a revoked auth is now rejected by
-/// `register_adapter`.
+/// Remove an authorized adapter from THIS registry only. Auths are shared and
+/// any DAO can stand up a network that registers one, so a network's
+/// governance must never be able to disable an adapter for other networks.
+/// The same governance may register the auth again later. Global retirement
+/// belongs to the adapter itself (`retire_auth`).
 public fun revoke_adapter<P>(
     _permit: Permit<P>,
     registry: &mut AdapterRegistry,
-    auth: &mut AdapterAuth,
+    auth: &AdapterAuth,
     req: &ExecutionRequest<P>,
 ) {
     assert_registry_request(registry, req);
     let auth_id = object::id(auth);
     let (found, idx) = registry.authorized.index_of(&auth_id);
     assert!(found, errors::adapter_not_registered());
-    auth.revoked = true;
     registry.authorized.remove(idx);
     events::emit_adapter_revoked(events::new_adapter_revoked(registry.network_id, auth_id));
+}
+
+/// Terminal, global kill switch: every mint on every network aborts with
+/// `EAdapterRevoked` afterwards. Only the defining module of the auth's marker
+/// can issue the permit, so the adapter package decides who may retire it.
+public fun retire_auth<A>(_permit: Permit<A>, auth: &mut AdapterAuth) {
+    assert!(auth.adapter_type == type_name::with_defining_ids<A>(), errors::adapter_not_registered());
+    assert!(!auth.revoked, errors::adapter_revoked());
+    auth.revoked = true;
+    events::emit_adapter_retired(events::new_adapter_retired(object::id(auth)));
 }
 
 // === Adapter-publish helpers (called by adapter `init` functions) ===

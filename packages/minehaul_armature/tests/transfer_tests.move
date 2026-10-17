@@ -434,22 +434,73 @@ fun foreign_dao_cannot_authorize_adapter() {
     abort 999
 }
 
-#[test, expected_failure(abort_code = 18, location = minehaul_core::witnesses)]
+#[test, expected_failure(abort_code = 19, location = minehaul_core::witnesses)]
 fun revoked_adapter_cannot_complete_delivery() {
     let (mut s, c) = setup(400);
     claim(&mut s, &c);
     collect(&mut s, &c);
     let dao = s.take_shared<DAO>();
     let mut registry = s.take_shared<AdapterRegistry>();
-    let mut auth = s.take_shared<AdapterAuth>();
+    let auth = s.take_shared<AdapterAuth>();
     let t = ticket(&dao, configure_network::new_revoke_adapter(object::id(&auth)));
-    configure_network::execute_revoke_adapter(&dao, t, &mut registry, &mut auth);
+    configure_network::execute_revoke_adapter(&dao, t, &mut registry, &auth);
     ts::return_shared(dao);
     ts::return_shared(registry);
     ts::return_shared(auth);
     s.next_tx(HAULER);
     deliver(&mut s, &c);
     abort 999
+}
+
+/// Regression: anyone can create a DAO, stand up a network and register a
+/// shared auth. Revoking it there must not stop the auth on the victim network.
+#[test]
+fun foreign_network_revocation_does_not_disable_shared_adapter() {
+    let (mut s, c) = setup(400);
+    claim(&mut s, &c);
+    collect(&mut s, &c);
+    let victim_dao = s.take_shared<DAO>();
+    let victim_id = victim_dao.id();
+    let victim_registry_id = network::registry_id(network::borrow<ConfigureLogisticNetwork>(&victim_dao));
+    ts::return_shared(victim_dao);
+
+    s.next_tx(OUTSIDER);
+    let init = governance::init_board(vector[OUTSIDER]);
+    let attacker_id = dao::create(&init, b"Attacker DAO".to_string(), b"".to_string(), s.ctx());
+    s.next_tx(OUTSIDER);
+    let mut attacker = s.take_shared_by_id<DAO>(attacker_id);
+    let t = ticket(&attacker, configure_network::new_set_config(network::new_config(src(), 0, 0, 1, 0, true, OUTSIDER)));
+    configure_network::execute_configure_logistic_network(&mut attacker, t, s.ctx());
+    ts::return_shared(attacker);
+    s.next_tx(OUTSIDER);
+    let attacker = s.take_shared_by_id<DAO>(attacker_id);
+    let attacker_registry_id = network::registry_id(network::borrow<ConfigureLogisticNetwork>(&attacker));
+    let mut attacker_registry = s.take_shared_by_id<AdapterRegistry>(attacker_registry_id);
+    let auth = s.take_shared<AdapterAuth>();
+    let t = ticket(&attacker, configure_network::new_register_adapter(object::id(&auth)));
+    configure_network::execute_register_adapter(&attacker, t, &mut attacker_registry, &auth);
+    let t = ticket(&attacker, configure_network::new_revoke_adapter(object::id(&auth)));
+    configure_network::execute_revoke_adapter(&attacker, t, &mut attacker_registry, &auth);
+    assert!(!witnesses::auth_revoked(&auth), 0);
+    ts::return_shared(attacker);
+    ts::return_shared(attacker_registry);
+    ts::return_shared(auth);
+
+    s.next_tx(HAULER);
+    let dao = s.take_shared_by_id<DAO>(victim_id);
+    let mut a = s.take_shared<HaulAction>();
+    let registry = s.take_shared_by_id<AdapterRegistry>(victim_registry_id);
+    let auth = s.take_shared<AdapterAuth>();
+    let (cargo, request) = action::withdraw_cargo_for_delivery<ConfigureLogisticNetwork>(&mut a, &dao, &c, s.ctx());
+    cargo.do!(|balance| transfer::public_transfer(balance, LISTER));
+    let proof = witnesses::certify_delivery(internal::permit<MockDelivery>(), &auth, &registry, request);
+    action::complete_action<ConfigureLogisticNetwork>(&mut a, &dao, proof, &c, s.ctx());
+    assert!(action::is_delivered(&a), 1);
+    ts::return_shared(a);
+    ts::return_shared(dao);
+    ts::return_shared(registry);
+    ts::return_shared(auth);
+    finish(s, c);
 }
 
 #[test, expected_failure(abort_code = 1, location = minehaul_armature::cancel_haul_action)]

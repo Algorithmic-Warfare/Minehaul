@@ -169,7 +169,7 @@ public fun execute_register_adapter(
 
 public fun execute_revoke_adapter(
     dao: &DAO, ticket: ExecutionTicket<ConfigureLogisticNetwork>,
-    registry: &mut witnesses::AdapterRegistry, auth: &mut witnesses::AdapterAuth,
+    registry: &mut witnesses::AdapterRegistry, auth: &witnesses::AdapterAuth,
 ) {
     assert!(dao.id() == ticket.ticket_dao_id(), EDaoMismatch);
     assert!(network::registry_id(network::borrow<ConfigureLogisticNetwork>(dao)) == object::id(registry), EDaoMismatch);

@@ -1,9 +1,11 @@
 /// World-v0 adapter — publish-time init that mints the package's single
 /// `AdapterAuth`.
 ///
-/// The auth is shared so clients can pass it to adapter calls and governance can
-/// revoke it. A governance proposal in `minehaul_armature` registers its ID into
-/// the network's `AdapterRegistry`. After registration, modules in this package
+/// The auth is shared so clients can pass it to adapter calls and any network can
+/// register it. A governance proposal in `minehaul_armature` registers its ID into
+/// the network's `AdapterRegistry`; revoking only removes it from that registry.
+/// This package exposes no `witnesses::retire_auth` path, so the auth cannot be
+/// disabled globally. After registration, modules in this package
 /// use their private compiler permit to mint witnesses (see `ssu::verify_ssu`).
 module minehaul_world_v0::adapter;
 

@@ -88,8 +88,14 @@ public struct AdapterRegistered has copy, drop {
     world_version: u8,
 }
 
+/// Removal from one network's registry; the auth stays valid elsewhere.
 public struct AdapterRevoked has copy, drop {
     network_id: ID,
+    auth_id: ID,
+}
+
+/// Global retirement by the adapter; the auth is dead on every network.
+public struct AdapterRetired has copy, drop {
     auth_id: ID,
 }
 
@@ -105,6 +111,7 @@ public(package) fun emit_action_expired(e: ActionExpired)         { event::emit(
 public(package) fun emit_action_cancelled(e: ActionCancelled)     { event::emit(e) }
 public(package) fun emit_adapter_registered(e: AdapterRegistered) { event::emit(e) }
 public(package) fun emit_adapter_revoked(e: AdapterRevoked)       { event::emit(e) }
+public(package) fun emit_adapter_retired(e: AdapterRetired)       { event::emit(e) }
 
 public(package) fun new_network_configured(
     network_id: ID, default_reward_collection: ID, default_reward_asset_id: u64,
@@ -180,6 +187,10 @@ public(package) fun new_adapter_registered(
 
 public(package) fun new_adapter_revoked(network_id: ID, auth_id: ID): AdapterRevoked {
     AdapterRevoked { network_id, auth_id }
+}
+
+public(package) fun new_adapter_retired(auth_id: ID): AdapterRetired {
+    AdapterRetired { auth_id }
 }
 
 /// Actual payout, distinct from delivery (which starts the dispute window).

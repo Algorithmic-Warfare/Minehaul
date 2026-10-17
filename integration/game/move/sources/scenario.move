@@ -335,7 +335,7 @@ entry fun revoke_delivery_adapter(
     vault: &CapabilityVault,
     freeze: &EmergencyFreeze,
     registry: &mut AdapterRegistry,
-    delivery_auth: &mut AdapterAuth,
+    delivery_auth: &AdapterAuth,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {

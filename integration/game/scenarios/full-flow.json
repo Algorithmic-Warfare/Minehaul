@@ -328,7 +328,7 @@
         { "op": "claim", "actor": "hauler" },
         { "op": "collect", "actor": "hauler" },
         { "op": "revoke-delivery-adapter", "actor": "lister" },
-        { "op": "deliver", "actor": "hauler", "receiver": "lister", "destination": "destination", "expectAbort": 18 },
+        { "op": "deliver", "actor": "hauler", "receiver": "lister", "destination": "destination", "expectAbort": 19 },
         { "op": "dispute", "actor": "lister" },
         { "op": "resolve", "actor": "lister", "awardToHauler": false, "slashBps": 2500 }
       ],

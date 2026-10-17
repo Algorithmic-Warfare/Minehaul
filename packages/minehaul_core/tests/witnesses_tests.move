@@ -116,7 +116,7 @@ fun test_mint_verified_ssu_aborts_when_revoked() {
 fun test_register_and_revoke_adapter_full_path() {
     use armature::proposal;
     let mut scenario = ts::begin(ADMIN);
-    let mut auth = witnesses::new_auth(internal::permit<NETWORK_WITNESS>(), @minehaul_core, 0, scenario.ctx());
+    let auth = witnesses::new_auth(internal::permit<NETWORK_WITNESS>(), @minehaul_core, 0, scenario.ctx());
     let auth_id = object::id(&auth);
 
     // Build a registry directly (production path is new_registry, also
@@ -134,12 +134,14 @@ fun test_register_and_revoke_adapter_full_path() {
     witnesses::register_adapter<NETWORK_WITNESS>(internal::permit<NETWORK_WITNESS>(), &mut registry, &auth, &req);
     assert!(registry.registry_authorized().contains(&auth_id), 0);
 
-    // Production revoke_adapter: flips flag AND removes the ID.
-    witnesses::revoke_adapter<NETWORK_WITNESS>(internal::permit<NETWORK_WITNESS>(), &mut registry, &mut auth, &req);
-    assert!(witnesses::auth_revoked(&auth), 1);
+    // Production revoke_adapter: removes the ID from this registry only.
+    witnesses::revoke_adapter<NETWORK_WITNESS>(internal::permit<NETWORK_WITNESS>(), &mut registry, &auth, &req);
+    assert!(!witnesses::auth_revoked(&auth), 1);
     assert!(!registry.registry_authorized().contains(&auth_id), 2);
 
-    // Re-registering a revoked auth must abort.
+    // Network-level revocation is reversible by the same governance.
+    witnesses::register_adapter<NETWORK_WITNESS>(internal::permit<NETWORK_WITNESS>(), &mut registry, &auth, &req);
+    assert!(registry.registry_authorized().contains(&auth_id), 3);
     proposal::consume_execution_request_for_testing(req);
 
     transfer::public_transfer(auth, ADMIN);
@@ -149,6 +151,71 @@ fun test_register_and_revoke_adapter_full_path() {
 
 /// Phantom marker for the test ExecutionRequest above.
 public struct NETWORK_WITNESS has drop {}
+
+/// Marker for a second, unrelated network sharing the same auth.
+public struct OTHER_NETWORK has drop {}
+
+/// Regression: a network revoking a shared auth must not disable it on
+/// another network that still lists it.
+#[test]
+fun test_revoke_on_one_network_leaves_other_network_working() {
+    use armature::proposal;
+    let mut scenario = ts::begin(ADMIN);
+    let auth = witnesses::new_auth(internal::permit<NETWORK_WITNESS>(), @minehaul_core, 0, scenario.ctx());
+    let mut victim = witnesses::new_registry_for_test(net(), vector[], scenario.ctx());
+    witnesses::register_for_test(&mut victim, object::id(&auth));
+
+    let other_id = object::id_from_address(@0xBAD);
+    let mut other = witnesses::new_registry_for_test(other_id, vector[], scenario.ctx());
+    let req = proposal::new_execution_request_for_testing<OTHER_NETWORK>(other_id, object::id_from_address(@0xDEADBEEF));
+    witnesses::register_adapter<OTHER_NETWORK>(internal::permit<OTHER_NETWORK>(), &mut other, &auth, &req);
+    witnesses::revoke_adapter<OTHER_NETWORK>(internal::permit<OTHER_NETWORK>(), &mut other, &auth, &req);
+    proposal::consume_execution_request_for_testing(req);
+    assert!(!witnesses::auth_revoked(&auth), 0);
+
+    let c = setup_clock(&mut scenario);
+    let _vssu = witnesses::mint_verified_ssu(internal::permit<NETWORK_WITNESS>(),
+        &auth, &victim, object::id_from_address(SSU_ADDR), object::id_from_address(OWNER_ADDR), &c,
+    );
+
+    clock::destroy_for_testing(c);
+    transfer::public_transfer(auth, ADMIN);
+    witnesses::share_registry(victim);
+    witnesses::share_registry(other);
+    scenario.end();
+}
+
+#[test, expected_failure(abort_code = 18)] // EAdapterRevoked
+fun test_retire_auth_disables_mint_everywhere() {
+    let mut scenario = ts::begin(ADMIN);
+    let mut auth = witnesses::new_auth(internal::permit<NETWORK_WITNESS>(), @minehaul_core, 0, scenario.ctx());
+    let mut registry = witnesses::new_registry_for_test(net(), vector[], scenario.ctx());
+    witnesses::register_for_test(&mut registry, object::id(&auth));
+    witnesses::retire_auth(internal::permit<NETWORK_WITNESS>(), &mut auth);
+    assert!(witnesses::auth_revoked(&auth), 0);
+    let c = setup_clock(&mut scenario);
+
+    let _vssu = witnesses::mint_verified_ssu(internal::permit<NETWORK_WITNESS>(),
+        &auth, &registry, object::id_from_address(SSU_ADDR), object::id_from_address(OWNER_ADDR), &c,
+    );
+
+    // unreachable
+    clock::destroy_for_testing(c);
+    transfer::public_transfer(auth, ADMIN);
+    witnesses::share_registry(registry);
+    scenario.end();
+}
+
+#[test, expected_failure(abort_code = 19)] // EAdapterNotRegistered
+fun test_retire_auth_rejects_foreign_permit() {
+    let mut scenario = ts::begin(ADMIN);
+    let mut auth = witnesses::new_auth(internal::permit<NETWORK_WITNESS>(), @minehaul_core, 0, scenario.ctx());
+    witnesses::retire_auth(internal::permit<OTHER_NETWORK>(), &mut auth);
+
+    // unreachable
+    transfer::public_transfer(auth, ADMIN);
+    scenario.end();
+}
 
 #[test, expected_failure(abort_code = 18)] // EAdapterRevoked
 fun test_register_adapter_rejects_revoked_auth() {
