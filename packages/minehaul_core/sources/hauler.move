@@ -7,6 +7,7 @@ module minehaul_core::hauler;
 
 use sui::object::ID;
 use sui::tx_context::{Self, TxContext};
+use minehaul_core::errors;
 
 public struct HaulerCap has store {
     action_id: ID,
@@ -43,5 +44,5 @@ public fun deadline_ms(self: &HaulerCap): u64 { self.deadline_ms }
 /// Assert that the transaction sender is the hauler bound to this cap.
 /// v0 binding is by address; v1 will swap to a `VerifiedCharacter` witness.
 public fun assert_sender(self: &HaulerCap, ctx: &TxContext) {
-    assert!(tx_context::sender(ctx) == self.hauler, /* ENotClaimer */ 8);
+    assert!(tx_context::sender(ctx) == self.hauler, errors::not_claimer());
 }
