@@ -36,7 +36,7 @@ const EOwnerCapMismatch: u64 = 1;
 /// audit; we do NOT currently enforce that `character` is the SSU's owner —
 /// the OwnerCap check is the authoritative ownership proof.
 ///
-/// TODO(minehaul#9): the `owner_char_id` field is presently advisory metadata.
+/// TODO(minehaul#14): the `owner_char_id` field is presently advisory metadata.
 /// An attacker holding a valid OwnerCap could record an arbitrary character.
 /// When the character→ssu binding is needed for collection or delivery
 /// authorization, enforce it here.
