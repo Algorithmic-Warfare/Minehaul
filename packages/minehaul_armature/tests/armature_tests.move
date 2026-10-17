@@ -50,12 +50,11 @@ fun enable_types(scenario: &mut ts::Scenario) {
 }
 
 fun synth_ticket(
-    scenario: &mut ts::Scenario,
+    _scenario: &mut ts::Scenario,
     dao_id: ID,
     proposal_seed: address,
     payload: ConfigureLogisticNetwork,
 ): proposal::ExecutionTicket<ConfigureLogisticNetwork> {
-    let _ = scenario;
     proposal::new_standalone_ticket_for_testing<ConfigureLogisticNetwork>(
         dao_id, object::id_from_address(proposal_seed), payload, 100, 100,
     )
@@ -70,7 +69,7 @@ fun test_set_config_lazy_init() {
     enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
-    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let mut dao = ts::take_shared<DAO>(&scenario);
     let dao_id = dao.id();
     let payload = configure_network::new_set_config(make_config());
     let ticket = synth_ticket(&mut scenario, dao_id, @0xD01, payload);
@@ -95,7 +94,7 @@ fun test_set_config_update_in_place() {
     enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
-    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let mut dao = ts::take_shared<DAO>(&scenario);
     let dao_id = dao.id();
 
     let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
@@ -124,7 +123,7 @@ fun test_set_config_aborts_on_wrong_variant() {
     enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
-    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let mut dao = ts::take_shared<DAO>(&scenario);
     let dao_id = dao.id();
     // Ticket is for SetPaused, but caller invokes execute_configure_logistic_network.
     let t = synth_ticket(&mut scenario, dao_id, @0xD09,
@@ -144,7 +143,7 @@ fun test_register_ssu_vaulted_happy_path() {
     enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
-    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let mut dao = ts::take_shared<DAO>(&scenario);
     let dao_id = dao.id();
 
     let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
@@ -179,7 +178,7 @@ fun test_register_ssu_leased_happy_path() {
     enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
-    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let mut dao = ts::take_shared<DAO>(&scenario);
     let dao_id = dao.id();
 
     let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
@@ -210,7 +209,7 @@ fun test_register_ssu_aborts_on_id_mismatch() {
     enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
-    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let mut dao = ts::take_shared<DAO>(&scenario);
     let dao_id = dao.id();
 
     let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
@@ -239,7 +238,7 @@ fun test_register_ssu_aborts_on_wrong_network() {
     enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
-    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let mut dao = ts::take_shared<DAO>(&scenario);
     let dao_id = dao.id();
 
     let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
@@ -267,7 +266,7 @@ fun test_register_ssu_aborts_on_wrong_variant() {
     enable_types(&mut scenario);
 
     ts::next_tx(&mut scenario, CREATOR);
-    let mut dao = ts::take_shared<DAO>(&mut scenario);
+    let mut dao = ts::take_shared<DAO>(&scenario);
     let dao_id = dao.id();
 
     let t1 = synth_ticket(&mut scenario, dao_id, @0xD01,
