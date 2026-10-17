@@ -9,8 +9,11 @@ public struct NetworkConfigured has copy, drop {
     network_id: ID,
     default_reward_collection: ID,
     default_reward_asset_id: u64,
-    max_route_len: u8,
-    permit_ttl_ms: u64,
+    min_collateral_ratio_bps: u16,
+    max_cargo_lines: u8,
+    dispute_window_ms: u64,
+    allow_open_marketplace: bool,
+    treasury_addr: address,
     paused: bool,
 }
 
@@ -27,24 +30,13 @@ public struct SsuUnregistered has copy, drop {
     ssu_id: ID,
 }
 
-public struct GateRegistered has copy, drop {
-    network_id: ID,
-    gate_id: ID,
-    location_id: ID,
-}
-
-public struct GateUnregistered has copy, drop {
-    network_id: ID,
-    gate_id: ID,
-}
-
 public struct ActionListed has copy, drop {
     network_id: ID,
     action_id: ID,
     lister: address,
     kind_tag: u8, // 0=Inject, 1=Transfer, 2=Extract
-    route_hash: vector<u8>,
-    route_len: u16,
+    source_ssu: ID,
+    destination_ssu: ID,
     reward_collection: ID,
     reward_asset_id: u64,
     reward_amount: u64,
@@ -56,14 +48,6 @@ public struct ActionClaimed has copy, drop {
     hauler: address,
     collateral_amount: u64,
     haul_deadline_ms: u64,
-}
-
-public struct HopRecorded has copy, drop {
-    action_id: ID,
-    gate_id: ID,
-    hop_index: u16,
-    hauler: address,
-    recorded_at_ms: u64,
 }
 
 public struct ActionDelivered has copy, drop {
@@ -89,7 +73,7 @@ public struct ActionResolved has copy, drop {
 
 public struct ActionExpired has copy, drop {
     action_id: ID,
-    was_open: bool, // false => was Claimed/InFlight when deadline passed
+    was_open: bool, // false => was Claimed/Collected when deadline passed
 }
 
 public struct ActionCancelled has copy, drop {
@@ -104,19 +88,22 @@ public struct AdapterRegistered has copy, drop {
     world_version: u8,
 }
 
+/// Removal from one network's registry; the auth stays valid elsewhere.
 public struct AdapterRevoked has copy, drop {
     network_id: ID,
+    auth_id: ID,
+}
+
+/// Global retirement by the adapter; the auth is dead on every network.
+public struct AdapterRetired has copy, drop {
     auth_id: ID,
 }
 
 public(package) fun emit_network_configured(e: NetworkConfigured) { event::emit(e) }
 public(package) fun emit_ssu_registered(e: SsuRegistered)         { event::emit(e) }
 public(package) fun emit_ssu_unregistered(e: SsuUnregistered)     { event::emit(e) }
-public(package) fun emit_gate_registered(e: GateRegistered)       { event::emit(e) }
-public(package) fun emit_gate_unregistered(e: GateUnregistered)   { event::emit(e) }
 public(package) fun emit_action_listed(e: ActionListed)           { event::emit(e) }
 public(package) fun emit_action_claimed(e: ActionClaimed)         { event::emit(e) }
-public(package) fun emit_hop_recorded(e: HopRecorded)             { event::emit(e) }
 public(package) fun emit_action_delivered(e: ActionDelivered)     { event::emit(e) }
 public(package) fun emit_action_disputed(e: ActionDisputed)       { event::emit(e) }
 public(package) fun emit_action_resolved(e: ActionResolved)       { event::emit(e) }
@@ -124,12 +111,19 @@ public(package) fun emit_action_expired(e: ActionExpired)         { event::emit(
 public(package) fun emit_action_cancelled(e: ActionCancelled)     { event::emit(e) }
 public(package) fun emit_adapter_registered(e: AdapterRegistered) { event::emit(e) }
 public(package) fun emit_adapter_revoked(e: AdapterRevoked)       { event::emit(e) }
+public(package) fun emit_adapter_retired(e: AdapterRetired)       { event::emit(e) }
 
 public(package) fun new_network_configured(
     network_id: ID, default_reward_collection: ID, default_reward_asset_id: u64,
-    max_route_len: u8, permit_ttl_ms: u64, paused: bool,
+    min_collateral_ratio_bps: u16, max_cargo_lines: u8,
+    dispute_window_ms: u64, allow_open_marketplace: bool,
+    treasury_addr: address, paused: bool,
 ): NetworkConfigured {
-    NetworkConfigured { network_id, default_reward_collection, default_reward_asset_id, max_route_len, permit_ttl_ms, paused }
+    NetworkConfigured {
+        network_id, default_reward_collection, default_reward_asset_id,
+        min_collateral_ratio_bps, max_cargo_lines, dispute_window_ms,
+        allow_open_marketplace, treasury_addr, paused,
+    }
 }
 
 public(package) fun new_ssu_registered(
@@ -142,21 +136,13 @@ public(package) fun new_ssu_unregistered(network_id: ID, ssu_id: ID): SsuUnregis
     SsuUnregistered { network_id, ssu_id }
 }
 
-public(package) fun new_gate_registered(network_id: ID, gate_id: ID, location_id: ID): GateRegistered {
-    GateRegistered { network_id, gate_id, location_id }
-}
-
-public(package) fun new_gate_unregistered(network_id: ID, gate_id: ID): GateUnregistered {
-    GateUnregistered { network_id, gate_id }
-}
-
 public(package) fun new_action_listed(
     network_id: ID, action_id: ID, lister: address, kind_tag: u8,
-    route_hash: vector<u8>, route_len: u16, reward_collection: ID,
+    source_ssu: ID, destination_ssu: ID, reward_collection: ID,
     reward_asset_id: u64, reward_amount: u64, listing_expires_at_ms: u64,
 ): ActionListed {
     ActionListed {
-        network_id, action_id, lister, kind_tag, route_hash, route_len,
+        network_id, action_id, lister, kind_tag, source_ssu, destination_ssu,
         reward_collection, reward_asset_id, reward_amount, listing_expires_at_ms,
     }
 }
@@ -165,12 +151,6 @@ public(package) fun new_action_claimed(
     action_id: ID, hauler: address, collateral_amount: u64, haul_deadline_ms: u64,
 ): ActionClaimed {
     ActionClaimed { action_id, hauler, collateral_amount, haul_deadline_ms }
-}
-
-public(package) fun new_hop_recorded(
-    action_id: ID, gate_id: ID, hop_index: u16, hauler: address, recorded_at_ms: u64,
-): HopRecorded {
-    HopRecorded { action_id, gate_id, hop_index, hauler, recorded_at_ms }
 }
 
 public(package) fun new_action_delivered(
@@ -207,4 +187,20 @@ public(package) fun new_adapter_registered(
 
 public(package) fun new_adapter_revoked(network_id: ID, auth_id: ID): AdapterRevoked {
     AdapterRevoked { network_id, auth_id }
+}
+
+public(package) fun new_adapter_retired(auth_id: ID): AdapterRetired {
+    AdapterRetired { auth_id }
+}
+
+/// Actual payout, distinct from delivery (which starts the dispute window).
+public struct ActionSettled has copy, drop {
+    action_id: ID,
+    hauler: address,
+    hauler_payout: u64,
+    treasury_payout: u64,
+}
+
+public(package) fun emit_action_settled(action_id: ID, hauler: address, hauler_payout: u64, treasury_payout: u64) {
+    event::emit(ActionSettled { action_id, hauler, hauler_payout, treasury_payout });
 }

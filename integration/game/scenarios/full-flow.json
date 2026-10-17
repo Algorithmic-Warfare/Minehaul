@@ -1,0 +1,349 @@
+{
+  "schemaVersion": 2,
+  "name": "full-flow",
+  "tenant": "minehaul-local",
+  "locationHash": "0x16217de8ec7330ec3eac32831df5c9cd9b21a255756a5fd5762dd7f49f6cc049",
+  "characters": {
+    "lister": { "gameCharacterId": 811880 },
+    "hauler": { "gameCharacterId": 900000001 },
+    "arbiter": { "gameCharacterId": 900000002 }
+  },
+  "networkNode": {
+    "typeId": 555,
+    "itemId": 5550000012
+  },
+  "storageUnits": [
+    {
+      "name": "source",
+      "typeId": 88082,
+      "itemId": 888800006,
+      "items": [
+        {
+          "name": "haul-cargo",
+          "typeId": 446,
+          "itemId": 444000001,
+          "quantity": 10,
+          "volume": 10
+        }
+      ]
+    },
+    {
+      "name": "destination",
+      "typeId": 88082,
+      "itemId": 888800007,
+      "items": []
+    }
+  ],
+  "gates": [],
+  "protocol": {
+    "rewardAmount": 1000,
+    "cargoAmount": 25,
+    "collateralAmount": 400,
+    "minCollateralRatioBps": 2000,
+    "rewardToHaulerBps": 8000,
+    "listingTtlMs": 600000,
+    "haulTtlMs": 600000,
+    "disputeWindowMs": 0
+  },
+  "acceptanceScenarios": [
+    {
+      "name": "successful-settlement",
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "collect", "actor": "hauler" },
+        { "op": "deliver", "actor": "hauler", "receiver": "lister", "destination": "destination" },
+        { "op": "settle", "actor": "arbiter" }
+      ],
+      "expected": {
+        "status": "Settled",
+        "events": ["ActionListed", "ActionClaimed", "ActionDelivered", "ActionSettled"],
+        "escrow": { "reward": 0, "collateral": 0, "cargo": 0 },
+        "balances": [
+          { "step": "deliver", "owner": "lister", "assetId": 1, "amount": 25 },
+          { "step": "settle", "owner": "hauler", "assetId": 0, "amount": 1200 },
+          { "step": "settle", "owner": "arbiter", "assetId": 0, "amount": 200 }
+        ]
+      }
+    },
+    {
+      "name": "cancel-before-claim",
+      "steps": [
+        { "op": "list" },
+        { "op": "cancel", "actor": "lister" }
+      ],
+      "expected": {
+        "status": "Cancelled",
+        "events": ["ActionListed", "ActionCancelled"],
+        "escrow": { "reward": 0, "collateral": 0, "cargo": 0 },
+        "balances": [
+          { "step": "cancel", "owner": "lister", "assetId": 0, "amount": 1000 },
+          { "step": "cancel", "owner": "lister", "assetId": 1, "amount": 25 }
+        ]
+      }
+    },
+    {
+      "name": "expire-unclaimed",
+      "config": { "listingTtlMs": 100 },
+      "steps": [
+        { "op": "list" },
+        { "op": "wait-listing-deadline" },
+        { "op": "expire", "actor": "arbiter" }
+      ],
+      "expected": {
+        "status": "Expired",
+        "events": ["ActionListed", "ActionExpired"],
+        "escrow": { "reward": 0, "collateral": 0, "cargo": 0 },
+        "balances": [
+          { "step": "expire", "owner": "lister", "assetId": 0, "amount": 1000 },
+          { "step": "expire", "owner": "lister", "assetId": 1, "amount": 25 }
+        ]
+      }
+    },
+    {
+      "name": "expire-after-claim",
+      "config": { "haulTtlMs": 1000 },
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "wait-haul-deadline" },
+        { "op": "expire", "actor": "arbiter" }
+      ],
+      "expected": {
+        "status": "Disputed",
+        "events": ["ActionListed", "ActionClaimed", "ActionDisputed", "ActionExpired"],
+        "escrow": { "reward": 1000, "collateral": 400, "cargo": 25 }
+      }
+    },
+    {
+      "name": "expire-after-collection",
+      "config": { "haulTtlMs": 1000 },
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "collect", "actor": "hauler" },
+        { "op": "wait-haul-deadline" },
+        { "op": "expire", "actor": "arbiter" }
+      ],
+      "expected": {
+        "status": "Disputed",
+        "events": ["ActionListed", "ActionClaimed", "ActionDisputed", "ActionExpired"],
+        "escrow": { "reward": 1000, "collateral": 400, "cargo": 25 }
+      }
+    },
+    {
+      "name": "dispute-after-collection",
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "collect", "actor": "hauler" },
+        { "op": "dispute", "actor": "lister" }
+      ],
+      "expected": {
+        "status": "Disputed",
+        "events": ["ActionListed", "ActionClaimed", "ActionDisputed"],
+        "escrow": { "reward": 1000, "collateral": 400, "cargo": 25 }
+      }
+    },
+    {
+      "name": "dispute-after-delivery",
+      "config": { "disputeWindowMs": 600000 },
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "collect", "actor": "hauler" },
+        { "op": "deliver", "actor": "hauler", "receiver": "lister", "destination": "destination" },
+        { "op": "dispute", "actor": "lister" }
+      ],
+      "expected": {
+        "status": "Disputed",
+        "events": ["ActionListed", "ActionClaimed", "ActionDelivered", "ActionDisputed"],
+        "escrow": { "reward": 1000, "collateral": 400, "cargo": 0 },
+        "balances": [
+          { "step": "deliver", "owner": "lister", "assetId": 1, "amount": 25 }
+        ]
+      }
+    },
+    {
+      "name": "resolve-for-hauler",
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "collect", "actor": "hauler" },
+        { "op": "dispute", "actor": "lister" },
+        { "op": "resolve", "actor": "lister", "awardToHauler": true, "slashBps": 0 }
+      ],
+      "expected": {
+        "status": "Resolved",
+        "awardToHauler": true,
+        "events": ["ActionListed", "ActionClaimed", "ActionDisputed", "ActionResolved"],
+        "escrow": { "reward": 0, "collateral": 0, "cargo": 0 },
+        "balances": [
+          { "step": "resolve", "owner": "hauler", "assetId": 0, "amount": 1200 },
+          { "step": "resolve", "owner": "arbiter", "assetId": 0, "amount": 200 },
+          { "step": "resolve", "owner": "lister", "assetId": 1, "amount": 25 }
+        ]
+      }
+    },
+    {
+      "name": "resolve-for-lister",
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "collect", "actor": "hauler" },
+        { "op": "dispute", "actor": "lister" },
+        { "op": "resolve", "actor": "lister", "awardToHauler": false, "slashBps": 2500 },
+        { "op": "resolve", "actor": "lister", "awardToHauler": false, "slashBps": 2500, "expectAbort": 6 }
+      ],
+      "expected": {
+        "status": "Resolved",
+        "awardToHauler": false,
+        "events": ["ActionListed", "ActionClaimed", "ActionDisputed", "ActionResolved"],
+        "eventCounts": { "ActionResolved": 1 },
+        "rejectedSteps": 1,
+        "escrow": { "reward": 0, "collateral": 0, "cargo": 0 },
+        "balances": [
+          { "step": "resolve", "owner": "lister", "assetId": 0, "amount": 100 },
+          { "step": "resolve", "owner": "lister", "assetId": 1, "amount": 25 },
+          { "step": "resolve", "owner": "arbiter", "assetId": 0, "amount": 1300 }
+        ]
+      }
+    },
+    {
+      "name": "pause-rejects-admission",
+      "steps": [
+        { "op": "list" },
+        { "op": "pause", "actor": "lister", "value": true },
+        { "op": "claim", "actor": "hauler", "expectAbort": 2 },
+        { "op": "pause", "actor": "lister", "value": false },
+        { "op": "cancel", "actor": "lister" }
+      ],
+      "expected": {
+        "status": "Cancelled",
+        "events": ["ActionListed", "ActionCancelled"],
+        "rejectedSteps": 1,
+        "escrow": { "reward": 0, "collateral": 0, "cargo": 0 },
+        "balances": [
+          { "step": "cancel", "owner": "lister", "assetId": 0, "amount": 1000 },
+          { "step": "cancel", "owner": "lister", "assetId": 1, "amount": 25 }
+        ]
+      }
+    },
+    {
+      "name": "pause-allows-completion",
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "pause", "actor": "lister", "value": true },
+        { "op": "collect", "actor": "hauler" },
+        { "op": "deliver", "actor": "hauler", "receiver": "lister", "destination": "destination" },
+        { "op": "settle", "actor": "arbiter" }
+      ],
+      "expected": {
+        "status": "Settled",
+        "events": ["ActionListed", "ActionClaimed", "ActionDelivered", "ActionSettled"],
+        "escrow": { "reward": 0, "collateral": 0, "cargo": 0 },
+        "balances": [
+          { "step": "deliver", "owner": "lister", "assetId": 1, "amount": 25 },
+          { "step": "settle", "owner": "hauler", "assetId": 0, "amount": 1200 },
+          { "step": "settle", "owner": "arbiter", "assetId": 0, "amount": 200 }
+        ]
+      }
+    },
+    {
+      "name": "wrong-destination-and-hauler",
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "collect", "actor": "hauler" },
+        { "op": "deliver", "actor": "arbiter", "receiver": "lister", "destination": "destination", "expectAbort": 8 },
+        { "op": "deliver", "actor": "hauler", "receiver": "lister", "destination": "source", "expectAbort": 1 },
+        { "op": "deliver", "actor": "hauler", "receiver": "lister", "destination": "destination" },
+        { "op": "settle", "actor": "arbiter" }
+      ],
+      "expected": {
+        "status": "Settled",
+        "events": ["ActionListed", "ActionClaimed", "ActionDelivered", "ActionSettled"],
+        "rejectedSteps": 2,
+        "escrow": { "reward": 0, "collateral": 0, "cargo": 0 },
+        "balances": [
+          { "step": "deliver", "owner": "lister", "assetId": 1, "amount": 25 },
+          { "step": "settle", "owner": "hauler", "assetId": 0, "amount": 1200 },
+          { "step": "settle", "owner": "arbiter", "assetId": 0, "amount": 200 }
+        ]
+      }
+    },
+    {
+      "name": "competing-claims",
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "claim", "actor": "arbiter", "expectAbort": 6 },
+        { "op": "collect", "actor": "hauler" },
+        { "op": "deliver", "actor": "hauler", "receiver": "lister", "destination": "destination" },
+        { "op": "settle", "actor": "arbiter" }
+      ],
+      "expected": {
+        "status": "Settled",
+        "events": ["ActionListed", "ActionClaimed", "ActionDelivered", "ActionSettled"],
+        "eventCounts": { "ActionClaimed": 1 },
+        "rejectedSteps": 1,
+        "escrow": { "reward": 0, "collateral": 0, "cargo": 0 },
+        "balances": [
+          { "step": "deliver", "owner": "lister", "assetId": 1, "amount": 25 },
+          { "step": "settle", "owner": "hauler", "assetId": 0, "amount": 1200 },
+          { "step": "settle", "owner": "arbiter", "assetId": 0, "amount": 200 }
+        ]
+      }
+    },
+    {
+      "name": "terminal-actions-are-final",
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "collect", "actor": "hauler" },
+        { "op": "deliver", "actor": "hauler", "receiver": "lister", "destination": "destination" },
+        { "op": "deliver", "actor": "hauler", "receiver": "lister", "destination": "destination", "expectAbort": 6 },
+        { "op": "settle", "actor": "arbiter" },
+        { "op": "settle", "actor": "arbiter", "expectAbort": 6 },
+        { "op": "expire", "actor": "arbiter", "expectAbort": 6 }
+      ],
+      "expected": {
+        "status": "Settled",
+        "events": ["ActionListed", "ActionClaimed", "ActionDelivered", "ActionSettled"],
+        "eventCounts": { "ActionDelivered": 1, "ActionSettled": 1 },
+        "rejectedSteps": 3,
+        "escrow": { "reward": 0, "collateral": 0, "cargo": 0 },
+        "balances": [
+          { "step": "deliver", "owner": "lister", "assetId": 1, "amount": 25 },
+          { "step": "settle", "owner": "hauler", "assetId": 0, "amount": 1200 },
+          { "step": "settle", "owner": "arbiter", "assetId": 0, "amount": 200 }
+        ]
+      }
+    },
+    {
+      "name": "adapter-revocation",
+      "steps": [
+        { "op": "list" },
+        { "op": "claim", "actor": "hauler" },
+        { "op": "collect", "actor": "hauler" },
+        { "op": "revoke-delivery-adapter", "actor": "lister" },
+        { "op": "deliver", "actor": "hauler", "receiver": "lister", "destination": "destination", "expectAbort": 19 },
+        { "op": "dispute", "actor": "lister" },
+        { "op": "resolve", "actor": "lister", "awardToHauler": false, "slashBps": 2500 }
+      ],
+      "expected": {
+        "status": "Resolved",
+        "awardToHauler": false,
+        "events": ["ActionListed", "ActionClaimed", "AdapterRevoked", "ActionDisputed", "ActionResolved"],
+        "rejectedSteps": 1,
+        "escrow": { "reward": 0, "collateral": 0, "cargo": 0 },
+        "balances": [
+          { "step": "resolve", "owner": "lister", "assetId": 0, "amount": 100 },
+          { "step": "resolve", "owner": "lister", "assetId": 1, "amount": 25 },
+          { "step": "resolve", "owner": "arbiter", "assetId": 0, "amount": 1300 }
+        ]
+      }
+    }
+  ]
+}

@@ -64,6 +64,12 @@ public(package) fun post_collateral(
     collateral: McBalance,
 ) {
     assert!(!self.has_collateral, errors::insufficient_collateral());
+    // Slashing joins reward and collateral. Reject incompatible assets at
+    // claim time, before a job can become impossible to settle.
+    let reward: &McBalance = dof::borrow(action_uid, RewardKey {});
+    assert!(multicoin::collection_id(&collateral) == multicoin::collection_id(reward)
+        && multicoin::asset_id(&collateral) == multicoin::asset_id(reward),
+        errors::insufficient_collateral());
     let collateral_amount = multicoin::value(&collateral);
     assert!(collateral_amount > 0, errors::insufficient_collateral());
     self.collateral_amount = collateral_amount;
@@ -84,11 +90,8 @@ public(package) fun payout_success(
 ): (McBalance, McBalance, Option<McBalance>) {
     let mut treasury_payout: McBalance = dof::remove(action_uid, RewardKey {});
     let total = multicoin::value(&treasury_payout);
-    // SAFETY: total * bps fits in u64 as long as total < 2^54 (~1.8e16).
-    // Realistic Multicoin amounts in EVE-Frontier denominations stay well
-    // under this bound; if you ever need >2^54 amounts here, switch the
-    // intermediate to u128.
-    let hauler_share = (total * (self.reward_to_hauler_bps as u64)) / BPS_DENOM;
+    let hauler_share = (((total as u128) * (self.reward_to_hauler_bps as u128))
+        / (BPS_DENOM as u128)) as u64;
     // multicoin::split aborts on amount==0; mint a zero balance instead so
     // bps=0 (full to treasury) is representable.
     let hauler_payout = if (hauler_share == 0) {
@@ -159,8 +162,8 @@ public(package) fun slash(
     let mut treasury_share: McBalance = dof::remove(action_uid, CollateralKey {});
 
     let coll_total = multicoin::value(&treasury_share);
-    // SAFETY: same u64 overflow bound as payout_success — see comment there.
-    let lister_take = (coll_total * (slash_bps as u64)) / BPS_DENOM;
+    let lister_take = (((coll_total as u128) * (slash_bps as u128))
+        / (BPS_DENOM as u128)) as u64;
     // Same zero-boundary handling as payout_success.
     let lister_recovery = if (lister_take == 0) {
         multicoin::zero(
