@@ -123,7 +123,10 @@ those objects and production governance authorization.
 - Registered adapters remain trusted to verify world facts correctly. Minting needs
   both their authorization object and a permit from their marker's defining module.
   `adapter_pkg` is descriptive metadata; the recorded adapter type is the enforced identity.
-- Adapter revocation is global and permanent for that authorization object.
+- Governance revocation removes an adapter from that network's registry only; any
+  network can register a shared authorization, so it cannot disable it elsewhere.
+  Global, permanent retirement (`witnesses::retire_auth`) needs the adapter's own
+  marker permit; the v0 world adapter exposes no retirement path.
 - The v0 SSU verifier checks capability authorization. Its character-cap ID field is
   advisory metadata, not an enforced character ownership binding or delivery evidence.
 - Vaulted/leased SSU modes record governance intent; this milestone does not verify

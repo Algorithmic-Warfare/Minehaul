@@ -85,8 +85,8 @@ cargo dynamic objects. Running `flow` again creates another independent run dire
 
 `matrix` deletes disposable chain state first, executes all 15 cases in declaration
 order, and writes `.minehaul/game/runtime/acceptance-matrix.json`. Every case creates
-and governs its own local delivery authorization, so permanent revocation of one
-authorization cannot affect another run. `test` runs the package and compiler-boundary
+and governs its own local delivery authorization, so revoking it in one run cannot
+affect another. `test` runs the package and compiler-boundary
 tests before invoking this matrix. CI uploads the runtime directory and Sui log as
 failure evidence.
 
