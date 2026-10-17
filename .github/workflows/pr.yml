@@ -29,6 +29,8 @@ jobs:
             move:
               - 'packages/**'
               - '.github/workflows/**'
+              - 'scripts/**'
+              - 'integration/game/**'
 
   # Build and test every Move package under packages/.
   move-contracts:
@@ -46,6 +48,18 @@ jobs:
 
       - name: Install Sui CLI
         run: /home/linuxbrew/.linuxbrew/bin/brew install sui
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        run: corepack prepare pnpm@11.11.0 --activate
+
+      - name: Validate local game harness
+        run: |
+          bash -n scripts/game-env.sh
+          ./scripts/game-env.sh doctor
 
       - name: Build Move packages
         run: |
@@ -68,3 +82,23 @@ jobs:
               echo "::endgroup::"
             fi
           done
+
+      - name: Check compiler-enforced security boundaries
+        run: bash scripts/check-security-boundaries.sh
+
+      - name: Run fresh-genesis acceptance matrix
+        run: ./scripts/game-env.sh matrix integration/game/scenarios/full-flow.json
+
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minehaul-acceptance-evidence
+          path: |
+            .minehaul/game/runtime/
+            .minehaul/game/sui.log
+          if-no-files-found: warn
+
+      - name: Stop local chain
+        if: always()
+        run: ./scripts/game-env.sh down || true
