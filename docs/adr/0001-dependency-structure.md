@@ -1,6 +1,7 @@
 # ADR 0001: Package and dependency structure
 
-- **Status:** Accepted
+- **Status:** Accepted historically; route and gate portions are superseded by
+  [ADR 0005](0005-endpoint-only-transport.md)
 - **Decided:** 2026-06-21 (PRs #6, #7, #8, #10)
 - **Recorded:** 2026-09-24
 - **Revised:** 2026-09-27 (armature `cycle-7` and loash-industries/armature#168 compatibility check)

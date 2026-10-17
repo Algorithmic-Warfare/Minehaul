@@ -1,6 +1,6 @@
 # ADR 0002: Logistic network architecture
 
-- **Status:** Accepted (partially implemented; the haul lifecycle is tracked in #11)
+- **Status:** Accepted historically; delivery semantics are superseded by [ADR 0004](0004-transfer-settlement-and-proofs.md), and all gate/route/hop decisions are superseded by [ADR 0005](0005-endpoint-only-transport.md). The implementation snapshot below is historical.
 - **Decided:** 2026-06-21 (PRs #6, #7, #8, #10; design issues #1–#4)
 - **Recorded:** 2026-09-24
 - **Revised:** 2026-09-27 (armature `cycle-7` and loash-industries/armature#168 impact; gap 2 confirmed by tests)

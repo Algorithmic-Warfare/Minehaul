@@ -1,6 +1,6 @@
 # ADR 0003: Haul actions never write network state
 
-- **Status:** Proposed
+- **Status:** Core design implemented by [ADR 0004](0004-transfer-settlement-and-proofs.md); route construction decision 4 superseded by [ADR 0005](0005-endpoint-only-transport.md); read-only ticket issuance awaits an upstream dependency change.
 - **Proposed:** 2026-09-27
 - **Relates to:** ADR 0002 (gap 2), issue #11
 
