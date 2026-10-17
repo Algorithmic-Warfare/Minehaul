@@ -41,20 +41,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Homebrew
-        run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          echo "/home/linuxbrew/.linuxbrew/bin" >> $GITHUB_PATH
-
+      # Pinned to the version game-env.sh doctor enforces; Homebrew tracks latest.
       - name: Install Sui CLI
-        run: /home/linuxbrew/.linuxbrew/bin/brew install sui
+        env:
+          SUI_VERSION: 1.72.2
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/sui.tgz" \
+            "https://github.com/MystenLabs/sui/releases/download/testnet-v${SUI_VERSION}/sui-testnet-v${SUI_VERSION}-ubuntu-x86_64.tgz"
+          mkdir -p "$RUNNER_TEMP/sui"
+          tar -xzf "$RUNNER_TEMP/sui.tgz" -C "$RUNNER_TEMP/sui"
+          sui_bin="$(find "$RUNNER_TEMP/sui" -type f -name sui | head -1)"
+          chmod +x "$sui_bin"
+          dirname "$sui_bin" >> "$GITHUB_PATH"
+          "$sui_bin" --version
 
       - uses: actions/setup-node@v4
         with:
           node-version: 24
 
       - name: Install pnpm
-        run: corepack prepare pnpm@11.11.0 --activate
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.11.0 --activate
 
       - name: Validate local game harness
         run: |
