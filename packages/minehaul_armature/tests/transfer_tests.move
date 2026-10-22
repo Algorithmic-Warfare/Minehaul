@@ -74,7 +74,6 @@ fun claim(s: &mut ts::Scenario, c: &Clock) {
     let mut a = s.take_shared<HaulAction>();
     let collateral = s.take_from_sender<Balance>();
     action::claim_action<ConfigureLogisticNetwork>(&mut a, &dao, collateral, c, s.ctx());
-    assert!(action::has_hauler_cap(&a, HAULER), 0);
     ts::return_shared(a);
     ts::return_shared(dao);
     let sender = s.ctx().sender();
@@ -108,7 +107,6 @@ fun deliver(s: &mut ts::Scenario, c: &Clock) {
     assert!(action::is_delivered(&a), 3);
     assert!(escrow::reward_amount(action::escrow(&a)) == 1000, 4);
     assert!(escrow::collateral_amount(action::escrow(&a)) == 400, 5);
-    assert!(!action::has_hauler_cap(&a, HAULER), 6);
     ts::return_shared(a);
     ts::return_shared(dao);
     ts::return_shared(registry);
@@ -196,7 +194,6 @@ fun resolve(s: &mut ts::Scenario, award: bool, slash: u16) {
     let t = ticket(&dao, resolve_dispute::new(action::id(&a), award, slash));
     resolve_dispute::execute(&dao, &mut a, t, s.ctx());
     assert!(action::is_resolved(&a), 0);
-    assert!(!action::has_hauler_cap(&a, HAULER), 1);
     ts::return_shared(a);
     ts::return_shared(dao);
     let sender = s.ctx().sender();

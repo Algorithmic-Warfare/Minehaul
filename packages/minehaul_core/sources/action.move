@@ -8,13 +8,12 @@
 ///     dynamic object fields keyed by `(collection_id, asset_id)`.
 ///   - Reward + collateral `Balance` objects also hang as DOFs (keyed in
 ///     `escrow.move`).
-///   - The `HaulerCap` is attached as a dynamic field keyed by hauler address once
-///     `claim_action` runs and is consumed when delivery completes.
+///   - The claiming hauler is recorded in `status`; the haul deadline in
+///     `haul_deadline_ms`.
 module minehaul_core::action;
 
 use std::type_name::{Self, TypeName};
 use sui::transfer;
-use sui::dynamic_field as df;
 use sui::object::{Self, ID, UID};
 use sui::clock::Clock;
 use sui::tx_context::TxContext;
@@ -24,7 +23,6 @@ use armature::proposal::ExecutionRequest;
 use multicoin::multicoin::{Self, Balance as McBalance};
 use minehaul_core::escrow::{Self, Escrow};
 use minehaul_core::{network, errors, events};
-use minehaul_core::hauler::{Self, HaulerCap};
 use minehaul_core::witnesses::{Self, DeliveryRequest, VerifiedDelivery};
 
 // === Domain types ===
@@ -39,11 +37,6 @@ public struct CargoLine has store, copy, drop {
 public struct CargoKey has copy, drop, store {
     collection_id: ID,
     asset_id: u64,
-}
-
-/// Dynamic-field key for the active `HaulerCap` on a HaulAction.
-public struct HaulerCapKey has copy, drop, store {
-    hauler: address,
 }
 
 public enum InjectionSource has store, copy, drop {
@@ -181,8 +174,6 @@ public fun claim_action<K>(
     escrow::post_collateral(&mut action.escrow, &mut action.id, collateral);
     action.haul_deadline_ms = now + action.haul_duration_ms;
     let who = ctx.sender();
-    let cap = hauler::new(object::id(action), who, action.haul_deadline_ms);
-    df::add(&mut action.id, HaulerCapKey { hauler: who }, cap);
     action.status = ActionStatus::Claimed { hauler: who, claimed_at_ms: now };
     events::emit_action_claimed(events::new_action_claimed(
         object::id(action), who, escrow::collateral_amount(&action.escrow), action.haul_deadline_ms,
@@ -244,7 +235,6 @@ public fun complete_action<K>(
     let (_, expected_dst) = transfer_endpoints(&action.kind);
     assert!(aid == object::id(action) && nid == action.network_id && dst == expected_dst
         && hauler == who && manifest == manifest_hash(action), errors::delivery_mismatch());
-    remove_cap(action, who);
     action.status = ActionStatus::Delivered { hauler: who, delivered_at_ms: clock.timestamp_ms() };
     events::emit_action_delivered(events::new_action_delivered(object::id(action), who, 0, 0, clock.timestamp_ms()));
 }
@@ -331,7 +321,6 @@ public fun resolve_dispute<P, K>(
         send(treasury, action.treasury);
     };
     refund_cargo(action);
-    remove_cap(action, who);
     action.status = ActionStatus::Resolved { hauler: who, award_to_hauler };
     events::emit_action_resolved(events::new_action_resolved(object::id(action), award_to_hauler, slash_bps));
 }
@@ -357,13 +346,6 @@ fun collected_hauler(action: &HaulAction): address {
         ActionStatus::Collected { hauler, .. } => hauler,
         _ => abort errors::action_wrong_status(),
     }
-}
-
-fun remove_cap(action: &mut HaulAction, who: address) {
-    let key = HaulerCapKey { hauler: who };
-    if (df::exists(&action.id, key)) {
-        hauler::destroy(df::remove<HaulerCapKey, HaulerCap>(&mut action.id, key));
-    };
 }
 
 fun send(balance: McBalance, recipient: address) {
@@ -443,10 +425,6 @@ public fun is_delivered(self: &HaulAction): bool {
         ActionStatus::Delivered { .. } => true,
         _ => false,
     }
-}
-
-public fun has_hauler_cap(action: &HaulAction, hauler: address): bool {
-    df::exists(&action.id, HaulerCapKey { hauler })
 }
 
 public fun has_cargo(action: &HaulAction, collection_id: ID, asset_id: u64): bool {
