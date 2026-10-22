@@ -108,14 +108,14 @@ public fun create_action<P, K>(
     assert!(listing_ttl_ms > 0 && haul_ttl_ms > 0, errors::invalid_deadline());
     let cfg = network::config(net);
     let (src, dst) = transfer_endpoints(&kind);
-    assert!(src != dst, errors::ssu_network_mismatch());
+    assert!(src != dst, errors::same_endpoints());
     network::assert_ssu_active(net, src, now);
     network::assert_ssu_active(net, dst, now);
     assert!(!cargo.is_empty(), errors::cargo_empty());
     assert!(cargo.length() <= (network::config_max_cargo_lines(cfg) as u64), errors::cargo_lines_exceed_max());
     assert!(cargo.length() == cargo_balances.length(), errors::cargo_mismatch());
     assert!(multicoin::collection_id(&reward) == network::config_default_reward_collection(cfg)
-        && multicoin::asset_id(&reward) == network::config_default_reward_asset_id(cfg), errors::insufficient_reward());
+        && multicoin::asset_id(&reward) == network::config_default_reward_asset_id(cfg), errors::wrong_reward_asset());
     let mut id = object::new(ctx);
     let mut balances = cargo_balances;
     // Vectors are positionally matched; duplicate keys abort before sharing.
@@ -311,9 +311,9 @@ public fun resolve_dispute<P, K>(
         ActionStatus::Disputed { hauler, .. } => hauler,
         _ => abort errors::action_wrong_status(),
     };
-    assert!(slash_bps <= 10000, errors::insufficient_collateral());
+    assert!(slash_bps <= 10000, errors::invalid_bps());
     if (award_to_hauler) {
-        assert!(slash_bps == 0, errors::insufficient_collateral());
+        assert!(slash_bps == 0, errors::invalid_ruling());
         pay_success(action, who, ctx);
     } else {
         let (lister, treasury) = escrow::slash(&mut action.escrow, &mut action.id, slash_bps, ctx);

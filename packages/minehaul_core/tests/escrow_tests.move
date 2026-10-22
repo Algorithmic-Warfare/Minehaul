@@ -49,7 +49,7 @@ fun test_new_attaches_reward_and_caches_amount() {
     scenario.end();
 }
 
-#[test, expected_failure(abort_code = 16)] // EInsufficientReward — bps > 10000
+#[test, expected_failure(abort_code = 39)] // EInvalidBps — bps > 10000
 fun test_new_aborts_on_bps_over_max() {
     let mut scenario = ts::begin(ADMIN);
     let ctx = scenario.ctx();
@@ -88,7 +88,7 @@ fun test_post_collateral_attaches() {
     scenario.end();
 }
 
-#[test, expected_failure(abort_code = 17)] // EInsufficientCollateral — double-post
+#[test, expected_failure(abort_code = 44)] // ECollateralAlreadyPosted — double-post
 fun test_post_collateral_aborts_on_double_post() {
     let mut scenario = ts::begin(ADMIN);
     let ctx = scenario.ctx();
@@ -357,7 +357,7 @@ fun test_slash_aborts_without_collateral() {
     abort 0
 }
 
-#[test, expected_failure(abort_code = 17)] // EInsufficientCollateral
+#[test, expected_failure(abort_code = 39)] // EInvalidBps
 fun test_slash_aborts_on_bps_over_max() {
     let mut scenario = ts::begin(ADMIN);
     let ctx = scenario.ctx();
@@ -430,7 +430,7 @@ fun test_slash_large_collateral_preserves_every_unit() {
     scenario.end();
 }
 
-#[test, expected_failure(abort_code = 17, location = minehaul_core::escrow)]
+#[test, expected_failure(abort_code = 41, location = minehaul_core::escrow)]
 fun test_collateral_rejects_wrong_asset() {
     let mut scenario = ts::begin(ADMIN);
     let (mut coll, cap) = multicoin::new_collection(scenario.ctx());
@@ -442,7 +442,7 @@ fun test_collateral_rejects_wrong_asset() {
     abort 0
 }
 
-#[test, expected_failure(abort_code = 17, location = minehaul_core::escrow)]
+#[test, expected_failure(abort_code = 41, location = minehaul_core::escrow)]
 fun test_collateral_rejects_wrong_collection() {
     let mut scenario = ts::begin(ADMIN);
     let (mut coll, cap) = multicoin::new_collection(scenario.ctx());

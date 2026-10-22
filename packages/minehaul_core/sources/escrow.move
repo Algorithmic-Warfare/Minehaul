@@ -42,7 +42,7 @@ public(package) fun new(
     reward_to_hauler_bps: u16,
     _ctx: &mut TxContext,
 ): Escrow {
-    assert!((reward_to_hauler_bps as u64) <= BPS_DENOM, errors::insufficient_reward());
+    assert!((reward_to_hauler_bps as u64) <= BPS_DENOM, errors::invalid_bps());
     let reward_amount = multicoin::value(&reward);
     assert!(reward_amount > 0, errors::insufficient_reward());
     dof::add(action_uid, RewardKey {}, reward);
@@ -63,13 +63,13 @@ public(package) fun post_collateral(
     action_uid: &mut UID,
     collateral: McBalance,
 ) {
-    assert!(!self.has_collateral, errors::insufficient_collateral());
+    assert!(!self.has_collateral, errors::collateral_already_posted());
     // Slashing joins reward and collateral. Reject incompatible assets at
     // claim time, before a job can become impossible to settle.
     let reward: &McBalance = dof::borrow(action_uid, RewardKey {});
     assert!(multicoin::collection_id(&collateral) == multicoin::collection_id(reward)
         && multicoin::asset_id(&collateral) == multicoin::asset_id(reward),
-        errors::insufficient_collateral());
+        errors::wrong_collateral_asset());
     let collateral_amount = multicoin::value(&collateral);
     assert!(collateral_amount > 0, errors::insufficient_collateral());
     self.collateral_amount = collateral_amount;
@@ -155,7 +155,7 @@ public(package) fun slash(
     slash_bps: u16,
     ctx: &mut TxContext,
 ): (McBalance, McBalance) {
-    assert!((slash_bps as u64) <= BPS_DENOM, errors::insufficient_collateral());
+    assert!((slash_bps as u64) <= BPS_DENOM, errors::invalid_bps());
     assert!(self.has_collateral, errors::insufficient_collateral());
 
     let reward: McBalance = dof::remove(action_uid, RewardKey {});
