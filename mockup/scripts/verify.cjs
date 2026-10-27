@@ -1,0 +1,107 @@
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const assert = require('node:assert/strict');
+const http = require('node:http');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const root = path.join(__dirname, '..', 'dist');
+const artifacts = process.env.ARTIFACT_DIR || '/tmp/minehaul-qa';
+
+(async () => {
+  await fs.mkdir(artifacts, { recursive: true });
+  const server = http.createServer(async (req, res) => {
+    const pathname = new URL(req.url, 'http://localhost').pathname;
+    const name = pathname === '/' ? 'index.html' : pathname.slice(1);
+    if (!['index.html', 'styles.css', 'app.js'].includes(name)) { res.writeHead(404).end(); return; }
+    const data = await fs.readFile(path.join(root, name));
+    res.setHeader('Content-Type', name.endsWith('.css') ? 'text/css' : name.endsWith('.js') ? 'text/javascript' : 'text/html');
+    res.end(data);
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  let browser;
+  const errors = [];
+  try {
+    browser = await chromium.launch({ headless: true, ...(process.env.CHROME_EXECUTABLE ? { executablePath: process.env.CHROME_EXECUTABLE } : {}) });
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto(url);
+    await page.evaluate(() => document.fonts.ready);
+    assert.equal(await page.locator('#job-rows tr').count(), 8);
+    await page.screenshot({ path: path.join(artifacts, 'desktop.png'), fullPage: true });
+    await page.locator('#search').fill('fuel');
+    assert.equal(await page.locator('#job-rows tr').count(), 2);
+    await page.reload();
+    assert.equal(await page.locator('#search').inputValue(), 'fuel');
+    await page.locator('#search').fill('no-such-cargo');
+    assert(await page.locator('#empty-state').isVisible());
+    await page.locator('#clear-search').click();
+    assert.equal(await page.locator('#job-rows tr').count(), 8);
+    assert(await page.locator('#search').evaluate(el => el === document.activeElement));
+    await page.locator('#network-filter').selectOption('Meridian Union');
+    assert.equal(await page.locator('#job-rows tr').count(), 2);
+    await page.locator('#network-filter').selectOption('all');
+    await page.locator('#sort').selectOption('reward');
+    assert.match(await page.locator('#job-rows tr').first().textContent(), /23,750/);
+    await page.locator('#sort').selectOption('newest');
+    await page.locator('[data-job="MH-0248"]').click();
+    assert(await page.locator('#detail-dialog').isVisible());
+    await page.keyboard.press('Escape');
+    assert(await page.locator('[data-job="MH-0248"]').evaluate(el => el === document.activeElement));
+    await page.locator('[data-job="MH-0248"]').click();
+    await page.locator('#job-action').click();
+    assert.match(await page.locator('#wallet').textContent(), /100,000/);
+    await page.locator('#job-action').click();
+    assert.match(await page.locator('#wallet').textContent(), /90,000/);
+    assert.equal(await page.locator('#haul-count').textContent(), '1');
+    await page.screenshot({ path: path.join(artifacts, 'details.png') });
+    await page.locator('#job-action').click();
+    await page.locator('#job-action').click();
+    assert.match(await page.locator('#detail-content .info-note').textContent(), /Reward and collateral remain escrowed/);
+    assert.match(await page.locator('#wallet').textContent(), /90,000/);
+    await page.locator('#job-action').click();
+    assert.match(await page.locator('#wallet').textContent(), /119,000/);
+    await page.locator('#job-action').click();
+    assert.match(await page.locator('#page-title').textContent(), /Every haul/);
+    await page.reload();
+    assert.match(await page.locator('#job-rows').textContent(), /Settled/);
+    assert.match(await page.locator('#wallet').textContent(), /119,000/);
+    await page.locator('[data-view="networks"]').click();
+    assert.equal(await page.locator('.network-card').count(), 3);
+    await page.locator('[data-network="Outer Rim Guild"]').click();
+    assert.equal(await page.locator('#job-rows tr').count(), 2);
+    await page.goBack();
+    assert(await page.locator('#networks-section').isVisible());
+    await page.locator('#guide').click();
+    await page.locator('#reset-demo').click();
+    assert.equal(await page.locator('#job-rows tr').count(), 8);
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    assert.equal(await page.locator('#haul-count').textContent(), '1');
+
+    for (const width of [390, 320, 768]) {
+      const mobile = await browser.newPage({ viewport: { width, height: 844 }, reducedMotion: 'reduce' });
+      mobile.on('pageerror', error => errors.push(error.message));
+      await mobile.goto(url);
+      await mobile.screenshot({ path: path.join(artifacts, `viewport-${width}.png`), fullPage: true });
+      const overflow = await mobile.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, elements: [...document.querySelectorAll('body *')].filter(el => el.getBoundingClientRect().right > innerWidth && !el.closest('.table-wrap') && !el.closest('.star-map')).map(el => el.tagName + '.' + el.className).slice(0, 10) }));
+      assert(overflow.scroll <= overflow.width, JSON.stringify(overflow));
+      assert(await mobile.locator('.table-wrap').evaluate(el => el.scrollWidth > el.clientWidth));
+      await mobile.screenshot({ path: path.join(artifacts, `viewport-${width}.png`), fullPage: true });
+      await mobile.locator('[data-job="MH-0248"]').click();
+      assert(await mobile.locator('#detail-dialog').isVisible());
+      await mobile.keyboard.press('Escape');
+      await mobile.locator('[data-view="hauls"]').click();
+      assert.match(await mobile.locator('#empty-state h3').textContent(), /Your next haul/);
+      await mobile.locator('#reset-filters').click();
+      assert.equal(await mobile.locator('#job-rows tr').count(), 8);
+      await mobile.close();
+    }
+    const blocked = await browser.newPage();
+    await blocked.addInitScript(() => Object.defineProperty(window, 'localStorage', { get() { throw new Error('Storage blocked'); } }));
+    await blocked.goto(url);
+    await blocked.locator('#wallet').click();
+    assert.match(await blocked.locator('#wallet').textContent(), /100,000/);
+    assert.equal(errors.length, 0, errors.join('\n'));
+    console.log('PASS: filters, URL restoration, sorting, modal keyboard/focus, claim/collection/delivery/settlement balances, persistence, network navigation, reset/undo, mobile overflow at 320/390/768px, empty recovery, blocked storage, no JS errors.');
+    console.log(`Screenshots: ${artifacts}`);
+  } finally { if (browser) await browser.close(); server.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });

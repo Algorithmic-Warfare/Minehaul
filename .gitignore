@@ -30,3 +30,4 @@ Thumbs.db
 # Minehaul UI
 ui/node_modules/
 ui/storybook-static/
+mockup/.openai/
