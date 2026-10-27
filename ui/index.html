@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en" data-mh-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Minehaul UI</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap">
+<link rel="stylesheet" href="minehaul-ui.css">
+<link rel="stylesheet" href="demo/specimen.css">
+</head>
+<body class="mh-root">
+
+<header class="sp-hero">
+  <div class="sp-wrap sp-hero__inner">
+    <div class="sp-hero__mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="sp-hero__text">
+      <span class="sp-kicker">Algorithmic Warfare · v0 alpha</span>
+      <h1 class="mh-display sp-hero__title">Minehaul UI</h1>
+      <p class="sp-hero__lede">Chamfered plates and countable stacks for logistics on EVE Frontier. Plain CSS and small ES modules, with no build step. Seven palette swatches drive every colour, and the AWAR palette is the default.</p>
+    </div>
+  </div>
+</header>
+
+<main class="sp-wrap sp-main">
+
+  <!-- Palette -->
+  <section class="sp-section" id="palette" aria-labelledby="palette-h">
+    <div class="sp-section__head">
+      <span class="sp-kicker">Palette</span>
+      <h2 class="mh-display" id="palette-h">Swap the swatches, keep the system</h2>
+      <p class="mh-muted">Every role, state and chart colour is derived with <code>var()</code> and <code>color-mix()</code> from these seven tokens. Change them here or override them in your own <code>:root</code>. The chamfer depth is a token too: set <code>--mh-cut-scale: 0</code> for AWAR's square corners.</p>
+    </div>
+    <div class="sp-palette">
+      <div class="mh-plate mh-plate--lg sp-controls">
+        <div class="sp-control-row">
+          <label class="sp-control"><span class="mh-label">Preset</span>
+            <span class="mh-plate mh-field sp-select"><select id="preset">
+              <option value="awar">AWAR (default)</option>
+              <option value="console">Minehaul console</option>
+              <option value="frontier">Frontier builders</option>
+              <option value="custom">Custom</option>
+            </select></span>
+          </label>
+          <div class="sp-control"><span class="mh-label" id="theme-l">Theme</span>
+            <div class="mh-seg" role="group" aria-labelledby="theme-l" id="theme">
+              <button type="button" data-theme-set="auto" aria-pressed="true">Auto</button>
+              <button type="button" data-theme-set="ink" aria-pressed="false">Ink</button>
+              <button type="button" data-theme-set="paper" aria-pressed="false">Paper</button>
+            </div>
+          </div>
+          <label class="sp-control"><span class="mh-label">Chamfer · <output id="cut-out">1.00</output>×</span>
+            <input type="range" id="cut" min="0" max="2" step="0.25" value="1">
+          </label>
+        </div>
+        <div class="sp-swatches" id="swatch-inputs"></div>
+        <div class="sp-css">
+          <div class="sp-css__head"><span class="mh-label">Your override</span><button type="button" class="mh-plate mh-button mh-button--ghost mh-button--sm" id="copy-css"><span class="mh-button__label">Copy CSS</span></button></div>
+          <pre id="css-out"></pre>
+        </div>
+      </div>
+      <div class="sp-roles" id="roles" aria-label="Derived roles"></div>
+    </div>
+  </section>
+
+  <!-- Board stacks -->
+  <section class="sp-section" id="board" aria-labelledby="board-h">
+    <div class="sp-section__head">
+      <span class="sp-kicker">Stacks</span>
+      <h2 class="mh-display" id="board-h">The open board, as countable cargo</h2>
+      <p class="mh-muted">Columns are reward-rate bands. Each square is 100 units, and each job is one unbroken run. Drag the floor to see which jobs clear your rate. Hatched jobs carry a risk, such as an expiring listing or a leased SSU that leaves before the deadline. Click any square, row or bar to open the job below.</p>
+    </div>
+    <div class="mh-plate mh-plate--lg sp-panel"><div id="stacks-board"></div></div>
+  </section>
+
+  <!-- Job card -->
+  <section class="sp-section" id="job" aria-labelledby="job-h">
+    <div class="sp-section__head">
+      <span class="sp-kicker">Job</span>
+      <h2 class="mh-display" id="job-h">One Transfer, end to end</h2>
+      <p class="mh-muted">Rendered by <code>renderJobCard()</code> from a record shaped like <code>HaulAction</code>. It shows the endpoints (no travel path), the reward and the collateral minimum (rounded up), the lifecycle, the timing that applies to the current state, the fixed payout split, and the manifest.</p>
+    </div>
+    <div id="job-card" aria-live="polite"></div>
+  </section>
+
+  <!-- Escrow stacks -->
+  <section class="sp-section" id="escrow" aria-labelledby="escrow-h">
+    <div class="sp-section__head">
+      <span class="sp-kicker">Stacks, regrouped</span>
+      <h2 class="mh-display" id="escrow-h">Escrow by stage</h2>
+      <p class="mh-muted">This is the same component grouped by lifecycle stage instead of rate. A square is 2,000 CR held in escrow: the reward, plus collateral once a job is claimed. Your hauls take the brand colour through a single <code>--mh-data-match</code> override.</p>
+    </div>
+    <div class="mh-plate mh-plate--lg sp-panel" style="--mh-data-match: var(--mh-brand-fill)">
+      <div id="stacks-escrow"></div>
+      <div id="escrow-split"></div>
+    </div>
+  </section>
+
+  <!-- Lifecycle -->
+  <section class="sp-section" id="lifecycle" aria-labelledby="life-h">
+    <div class="sp-section__head">
+      <span class="sp-kicker">Track</span>
+      <h2 class="mh-display" id="life-h">Every lifecycle state</h2>
+      <p class="mh-muted">Interlocking plates follow <code>ActionStatus</code>. Delivering is skipped because the delivery handoff commits atomically. Disputes, resolutions, expiries and cancellations leave as a hatched exit, so they read without colour.</p>
+    </div>
+    <div class="sp-tracks" id="tracks"></div>
+  </section>
+
+  <!-- Primitives -->
+  <section class="sp-section" id="primitives" aria-labelledby="prim-h">
+    <div class="sp-section__head">
+      <span class="sp-kicker">Primitives</span>
+      <h2 class="mh-display" id="prim-h">Plates, buttons, status</h2>
+    </div>
+    <div class="sp-grid">
+      <div class="sp-spec">
+        <h3 class="sp-spec__h">Plate</h3>
+        <div class="sp-plates">
+          <div class="mh-plate sp-plate"><b>Default</b><code>tr-bl · md</code></div>
+          <div class="mh-plate mh-plate--tl-br sp-plate"><b>Diagonal</b><code>--tl-br</code></div>
+          <div class="mh-plate mh-plate--all mh-plate--sm sp-plate"><b>All corners</b><code>--all --sm</code></div>
+          <div class="mh-plate mh-plate--tr mh-plate--lg sp-plate"><b>One corner</b><code>--tr --lg</code></div>
+          <div class="mh-plate mh-plate--accent sp-plate"><b>Accent</b><code>--accent</code></div>
+          <div class="mh-plate mh-plate--brand sp-plate"><b>Brand</b><code>--brand</code></div>
+          <div class="mh-plate mh-plate--raised sp-plate"><b>Raised</b><code>--raised</code></div>
+          <div class="mh-plate mh-plate--hatch sp-plate"><b>Hatch</b><code>--hatch</code></div>
+        </div>
+      </div>
+      <div class="sp-spec">
+        <h3 class="sp-spec__h">Button</h3>
+        <div class="sp-row">
+          <button type="button" class="mh-plate mh-button"><span class="mh-button__label">Claim job</span><span class="mh-button__cells" aria-hidden="true"><i></i><i></i><i></i></span></button>
+          <button type="button" class="mh-plate mh-button mh-button--secondary"><span class="mh-button__label">Manifest</span></button>
+          <button type="button" class="mh-plate mh-button mh-button--brand"><span class="mh-button__label">Propose</span></button>
+          <button type="button" class="mh-plate mh-button mh-button--ghost"><span class="mh-button__label">Open dispute</span></button>
+        </div>
+        <div class="sp-row">
+          <button type="button" class="mh-plate mh-button mh-button--sm"><span class="mh-button__label">Small</span></button>
+          <button type="button" class="mh-plate mh-button mh-button--lg"><span class="mh-button__label">Large</span></button>
+          <button type="button" class="mh-plate mh-button" id="busy-demo"><span class="mh-button__label">Click: busy</span><span class="mh-button__cells" aria-hidden="true"><i></i><i></i><i></i></span></button>
+          <button type="button" class="mh-plate mh-button" disabled><span class="mh-button__label">Finalize</span></button>
+        </div>
+        <p class="sp-note">Hover sweeps the keyline around the octagon. Loading shows a radar sweep and three cells. Disabled is hatched.</p>
+      </div>
+      <div class="sp-spec">
+        <h3 class="sp-spec__h">Status · tag · lamp</h3>
+        <div class="sp-row" id="statuses"></div>
+        <div class="sp-row">
+          <span class="mh-plate mh-plate--xs mh-tag">AST</span>
+          <span class="mh-plate mh-plate--xs mh-tag">MRD</span>
+          <span class="mh-plate mh-plate--xs mh-tag">ORG</span>
+          <span class="mh-plate mh-plate--xs mh-tag"><span class="mh-lamp mh-lamp--sm" data-lit></span>Live</span>
+          <span class="mh-plate mh-plate--xs mh-tag"><span class="mh-lamp mh-lamp--sm"></span>Paused</span>
+        </div>
+      </div>
+      <div class="sp-spec">
+        <h3 class="sp-spec__h">Field · meter</h3>
+        <label class="mh-plate mh-field"><span class="mh-field__prefix">CR</span><input id="f-reward" inputmode="numeric" placeholder="Minimum reward" aria-label="Minimum reward"></label>
+        <label class="mh-plate mh-field"><span class="mh-field__prefix">SSU</span><input id="f-ssu" placeholder="Search endpoints" aria-label="Search endpoints" value="Kepler"></label>
+        <div class="mh-meter mh-meter--thin" data-tone="settled" style="--mh-meter-value: .75; --mh-meter-cells: 8" role="meter" aria-label="Network SSUs online" aria-valuemin="0" aria-valuemax="8" aria-valuenow="6">
+          <div class="mh-meter__head"><span class="mh-label">SSUs online</span><span class="mh-num">6 / 8</span></div>
+          <div class="mh-meter__bar"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="sp-wrap sp-foot">
+  <p>All networks, cargo, balances and jobs on this page are fictional demo data. Nothing is read from or written to a chain.</p>
+  <p>The Plate, Button sweep and interlocking seam geometry are adapted from the EVE Frontier Builders Program UI kit (MIT, © Fenris Creations). See <code>ui/NOTICE</code>. The palette is AWAR's, from awar.dev.</p>
+</footer>
+
+<script type="module" src="demo/specimen.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+/*
+ * Icon and identicon. js/icons.js builds the SVG.
+ *   <svg class="mh-icon">…</svg>   1em square in the current colour
+ *   .mh-icon--14 / --21 / --28     whole-pixel sizes on the 7-cell grid
+ */
+@layer mh.components {
+  .mh-icon {
+    display: inline-block;
+    flex: none;
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+    vertical-align: -0.125em;
+  }
+  .mh-icon--14 { width: 14px; height: 14px; }
+  .mh-icon--21 { width: 21px; height: 21px; }
+  .mh-icon--28 { width: 28px; height: 28px; }
+
+  .mh-identicon {
+    display: inline-block;
+    flex: none;
+    vertical-align: middle;
+    clip-path: polygon(calc(4px * var(--mh-cut-scale)) 0, 100% 0, 100% calc(100% - 4px * var(--mh-cut-scale)), calc(100% - 4px * var(--mh-cut-scale)) 100%, 0 100%, 0 calc(4px * var(--mh-cut-scale)));
+  }
+
+  @media (forced-colors: active) {
+    .mh-icon { fill: CanvasText; }
+  }
+}

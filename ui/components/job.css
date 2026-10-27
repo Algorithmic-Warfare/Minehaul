@@ -1,0 +1,68 @@
+/*
+ * Job — one Transfer on a large plate: identity, endpoints, money, lifecycle,
+ * timing and manifest. js/job.js renders it from a job record; the markup is
+ * plain classes, so a server or framework can emit the same structure.
+ */
+@layer mh.components {
+  .mh-job {
+    --mh-plate-fill: var(--mh-surface);
+    --mh-plate-keyline: var(--mh-trim);
+    --_route-bg: var(--mh-surface);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--mh-space-5);
+    padding: var(--mh-space-5);
+    min-width: 0;
+  }
+
+  .mh-job__head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--mh-space-3);
+  }
+  .mh-job__title {
+    margin: 2px 0 0;
+    font-family: var(--mh-font-display);
+    font-size: var(--mh-text-xl);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+  }
+  .mh-job__tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .mh-figures {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--mh-space-4);
+    margin: 0;
+  }
+  .mh-figure { display: grid; gap: 2px; min-width: 0; }
+  .mh-figure dd { margin: 0; }
+  .mh-figure__value {
+    font-family: var(--mh-font-mono);
+    font-size: var(--mh-text-xl);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums slashed-zero;
+    line-height: 1.1;
+  }
+  .mh-figure__unit { margin-left: 4px; font-size: var(--mh-text-xs); color: var(--mh-muted); }
+  .mh-figure__note { font-size: var(--mh-text-2xs); color: var(--mh-muted); }
+
+  .mh-job__timing {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: var(--mh-space-5);
+  }
+
+  .mh-job__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--mh-space-3);
+    padding-top: var(--mh-space-4);
+    border-top: 1px solid var(--mh-line);
+  }
+  .mh-job__hint { font-size: var(--mh-text-xs); color: var(--mh-muted); margin-left: auto; }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@minehaul/ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chamfered plates and countable stacks for Minehaul clients",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./minehaul-ui.css",
+    "./tokens.css": "./tokens.css",
+    "./js/*": "./js/*"
+  },
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build -o storybook-static",
+    "specimen": "python3 -m http.server 4174 --directory ."
+  },
+  "devDependencies": {
+    "@storybook/addon-a11y": "10.6.1",
+    "@storybook/addon-docs": "10.6.1",
+    "@storybook/html-vite": "10.6.1",
+    "storybook": "10.6.1",
+    "vite": "8.3.3"
+  }
+}

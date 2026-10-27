@@ -1,0 +1,135 @@
+/*
+ * Minehaul UI tokens.
+ *
+ * Three tiers, each built from the one above with var():
+ *   1. Palette  — seven swatches. Override these to rebrand.
+ *   2. Roles    — surfaces, ink, lines, accent, status. Derived per theme.
+ *   3. Data     — lot shades, hatch, match and selection for charts.
+ *
+ * Themes switch through `color-scheme` and `light-dark()`, so a theme can be
+ * set on any element: data-mh-theme="ink" | "paper" | "auto".
+ * The default is ink (dark).
+ */
+@layer mh.tokens {
+  :root {
+    /* 1. Palette — AWAR defaults (awar.dev/DESIGN.md) */
+    --mh-ink: #171716;
+    --mh-ink-soft: #242321;
+    --mh-brand: #873a3c;        /* AWAR oxide */
+    --mh-brand-deep: #63282b;   /* AWAR oxide-deep */
+    --mh-signal: #ff8d3a;
+    --mh-paper: #f2eee6;
+    --mh-paper-muted: #d6d0c5;
+
+    /* Status hues, one value per theme */
+    --mh-ok-paper: #3d6b42;
+    --mh-ok-ink: #9cc59a;
+    --mh-warn-paper: #8a5a00;
+    --mh-warn-ink: #e9c46a;
+    --mh-alert-paper: #b0303a;
+    --mh-alert-ink: #ff7b84;
+
+    /* Chamfer depth multiplier. 0 gives square corners. */
+    --mh-cut-scale: 1;
+
+    color-scheme: dark;
+  }
+
+  /*
+   * Everything below derives from the palette. Custom properties resolve
+   * var() where they are declared, so these are re-declared on every themed
+   * scope: an element with data-mh-theme (and, optionally, its own palette
+   * overrides) gets roles computed from its own values.
+   */
+  :root,
+  [data-mh-theme] {
+    /* Status */
+    --mh-ok: light-dark(var(--mh-ok-paper), var(--mh-ok-ink));
+    --mh-warn: light-dark(var(--mh-warn-paper), var(--mh-warn-ink));
+    --mh-alert: light-dark(var(--mh-alert-paper), var(--mh-alert-ink));
+
+    /* 2. Roles */
+    --mh-bg: light-dark(var(--mh-paper), var(--mh-ink));
+    --mh-surface: light-dark(color-mix(in srgb, var(--mh-paper), var(--mh-paper-muted) 40%), var(--mh-ink-soft));
+    /* Mixed from ink, not paper-muted, so text contrast on it doesn't depend on the palette */
+    --mh-surface-2: light-dark(color-mix(in srgb, var(--mh-paper), var(--mh-ink) 10%), color-mix(in srgb, var(--mh-ink-soft), var(--mh-paper) 7%));
+    --mh-fg: light-dark(var(--mh-ink), var(--mh-paper));
+    /* Muted text keeps 4.5:1 on surface-2 (selected rows) in both themes */
+    --mh-muted: light-dark(color-mix(in srgb, var(--mh-ink) 72%, var(--mh-paper)), color-mix(in srgb, var(--mh-paper) 62%, var(--mh-ink)));
+    --mh-line: light-dark(color-mix(in srgb, var(--mh-ink) 20%, transparent), color-mix(in srgb, var(--mh-paper) 16%, transparent));
+    --mh-trim: light-dark(color-mix(in srgb, var(--mh-ink) 34%, transparent), color-mix(in srgb, var(--mh-paper) 30%, transparent));
+    --mh-control-line: light-dark(color-mix(in srgb, var(--mh-ink) 46%, transparent), color-mix(in srgb, var(--mh-paper) 38%, transparent));
+
+    --mh-accent: var(--mh-signal);
+    --mh-accent-fg: var(--mh-ink);
+    --mh-accent-pressed: color-mix(in srgb, var(--mh-signal), var(--mh-ink) 18%);
+    /* Signal is too light for text on paper, so it is darkened there */
+    --mh-accent-text: light-dark(color-mix(in srgb, var(--mh-signal), var(--mh-ink) 60%), color-mix(in srgb, var(--mh-signal), var(--mh-paper) 14%));
+
+    --mh-brand-fill: var(--mh-brand);
+    --mh-brand-fg: var(--mh-paper);
+    --mh-brand-text: light-dark(var(--mh-brand), color-mix(in srgb, var(--mh-brand), var(--mh-paper) 50%));
+
+    /* Lifecycle states (minehaul_core::action::ActionStatus) */
+    --mh-state-open: var(--mh-accent-text);
+    --mh-state-active: var(--mh-fg);
+    --mh-state-window: var(--mh-warn);
+    --mh-state-settled: var(--mh-ok);
+    --mh-state-disputed: var(--mh-alert);
+    --mh-state-resolved: var(--mh-brand-text);
+    --mh-state-void: var(--mh-muted);
+
+    /* 3. Data */
+    --mh-data-ground: var(--mh-bg);
+    --mh-data-a: color-mix(in srgb, var(--mh-fg) 58%, var(--mh-bg));
+    --mh-data-b: color-mix(in srgb, var(--mh-fg) 30%, var(--mh-bg));
+    --mh-data-hatch: color-mix(in srgb, var(--mh-fg) 70%, var(--mh-bg));
+    --mh-data-match: var(--mh-accent);
+    --mh-data-select: var(--mh-fg);
+    --mh-data-rule: var(--mh-line);
+    --mh-hatch: repeating-linear-gradient(-45deg, var(--mh-data-hatch) 0 1.5px, transparent 1.5px 5px);
+    /* For large surfaces that carry text: disabled controls, hatched plates */
+    --mh-hatch-soft: repeating-linear-gradient(-45deg, var(--mh-trim) 0 1px, transparent 1px 6px);
+
+    /* Shape: chamfer depths, scaled together by --mh-cut-scale */
+    --mh-cut-xs: calc(4px * var(--mh-cut-scale));
+    --mh-cut-sm: calc(8px * var(--mh-cut-scale));
+    --mh-cut-md: calc(14px * var(--mh-cut-scale));
+    --mh-cut-lg: calc(22px * var(--mh-cut-scale));
+    --mh-keyline: 1px;
+    --mh-seam: 6px;
+
+    /* Type */
+    --mh-font-display: "Space Grotesk", "Arial Narrow", sans-serif;
+    --mh-font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    --mh-font-body: var(--mh-font-mono);
+    --mh-text-2xs: 0.6875rem;
+    --mh-text-xs: 0.75rem;
+    --mh-text-sm: 0.8125rem;
+    --mh-text-md: 0.9375rem;
+    --mh-text-lg: 1.125rem;
+    --mh-text-xl: 1.5rem;
+    --mh-text-2xl: 2.25rem;
+    --mh-text-3xl: 3rem;
+    --mh-tracking-label: 0.12em;
+
+    /* Space — AWAR's 4px ladder */
+    --mh-space-1: 4px;
+    --mh-space-2: 8px;
+    --mh-space-3: 12px;
+    --mh-space-4: 16px;
+    --mh-space-5: 24px;
+    --mh-space-6: 32px;
+    --mh-space-7: 48px;
+    --mh-space-8: 64px;
+
+    /* Motion */
+    --mh-ease: cubic-bezier(.2, .8, .2, 1);
+    --mh-fast: 140ms;
+    --mh-slow: 550ms;
+  }
+
+  [data-mh-theme="ink"] { color-scheme: dark; }
+  [data-mh-theme="paper"] { color-scheme: light; }
+  [data-mh-theme="auto"] { color-scheme: light dark; }
+}

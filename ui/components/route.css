@@ -1,0 +1,99 @@
+/*
+ * Route — a Transfer's two endpoint SSUs. The link between them is
+ * schematic: Minehaul does not prescribe or attest the travel path.
+ *
+ *   <div class="mh-route-host"><div class="mh-route">   (host enables the narrow-container layout)
+ *     <div class="mh-plate mh-plate--sm mh-endpoint">
+ *       <span class="mh-label">Source</span><b>SSU-01</b><span>Aster Prime</span>
+ *       <span class="mh-endpoint__mode">Vaulted</span>
+ *     </div>
+ *     <div class="mh-route__link" aria-hidden="true"><span>endpoint only</span></div>
+ *     <div class="mh-plate mh-plate--sm mh-endpoint" data-mode="leased">…</div>
+ *   </div>
+ */
+@layer mh.components {
+  .mh-route {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(48px, .6fr) minmax(0, 1fr);
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .mh-endpoint {
+    --mh-plate-fill: var(--mh-bg);
+    --mh-plate-keyline: var(--mh-control-line);
+    display: grid;
+    align-content: start;
+    gap: 2px;
+    min-width: 0;
+    padding: var(--mh-space-3) var(--mh-space-4);
+  }
+  .mh-endpoint b {
+    font-family: var(--mh-font-mono);
+    font-size: var(--mh-text-lg);
+    line-height: 1.2;
+  }
+  .mh-endpoint > span:not(.mh-label) { font-size: var(--mh-text-sm); overflow-wrap: anywhere; }
+  .mh-endpoint__mode {
+    justify-self: start;
+    margin-top: 6px;
+    padding: 1px 6px;
+    border: 1px solid var(--mh-line);
+    font-size: var(--mh-text-2xs) !important;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--mh-muted);
+  }
+  /* A leased SSU can leave the network when its lease ends */
+  .mh-endpoint[data-mode="leased"] .mh-endpoint__mode { border-color: currentColor; color: var(--mh-warn); }
+  .mh-endpoint[data-risk] { --mh-plate-keyline: var(--mh-warn); }
+
+  .mh-route__link {
+    position: relative;
+    display: grid;
+    place-items: center;
+  }
+  .mh-route__link::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 6px;
+    top: 50%;
+    border-top: 2px dashed var(--mh-trim);
+  }
+  .mh-route__link::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: calc(50% - 5px);
+    width: 0;
+    height: 0;
+    border-left: 8px solid var(--mh-trim);
+    border-block: 6px solid transparent;
+  }
+  .mh-route__link span {
+    position: relative;
+    padding: 2px 6px;
+    background: var(--_route-bg, var(--mh-surface));
+    font-size: var(--mh-text-2xs);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--mh-muted);
+    white-space: nowrap;
+  }
+
+  /* Stacked: on phones, and inside narrow containers such as a side-column job card */
+  @media (max-width: 520px) {
+    .mh-route { grid-template-columns: 1fr; }
+    .mh-route__link { min-height: 36px; }
+    .mh-route__link::before { left: 50%; right: auto; top: 0; bottom: 6px; border-top: 0; border-left: 2px dashed var(--mh-trim); }
+    .mh-route__link::after { right: auto; left: calc(50% - 5px); top: auto; bottom: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--mh-trim); border-bottom: 0; }
+  }
+  .mh-route-host { container-type: inline-size; }
+  @container (max-width: 520px) {
+    .mh-route { grid-template-columns: 1fr; }
+    .mh-route__link { min-height: 36px; }
+    .mh-route__link::before { left: 50%; right: auto; top: 0; bottom: 6px; border-top: 0; border-left: 2px dashed var(--mh-trim); }
+    .mh-route__link::after { right: auto; left: calc(50% - 5px); top: auto; bottom: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--mh-trim); border-bottom: 0; }
+  }
+}

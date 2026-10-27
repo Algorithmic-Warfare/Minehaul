@@ -1,0 +1,93 @@
+/*
+ * Lamp, Tag and Status.
+ *
+ *   <span class="mh-lamp" data-lit></span>
+ *   <span class="mh-plate mh-plate--xs mh-tag">AST</span>
+ *   <span class="mh-plate mh-plate--xs mh-status" data-status="disputed">Disputed</span>
+ *
+ * data-status follows minehaul_core::action::ActionStatus, lower-case:
+ * open, claimed, collected, delivering, delivered, settled, resolved,
+ * disputed, expired, cancelled.
+ */
+@layer mh.components {
+  /* A 4px status cell, dim at rest and lit with a glow */
+  .mh-lamp {
+    --_lamp: var(--mh-accent);
+    display: inline-block;
+    flex: none;
+    width: 4px;
+    height: 12px;
+    background: color-mix(in srgb, var(--mh-fg) 18%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mh-fg) 12%, transparent);
+    transition: background var(--mh-fast), box-shadow var(--mh-fast);
+  }
+  .mh-lamp[data-lit],
+  :is(a, button):is(:hover, :focus-visible) > .mh-lamp,
+  [aria-current] > .mh-lamp {
+    background: var(--_lamp);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--_lamp) 45%, transparent),
+      0 0 10px 2px color-mix(in srgb, var(--_lamp) 55%, transparent);
+  }
+  .mh-lamp--sm { height: 8px; }
+
+  .mh-tag {
+    --mh-plate-fill: var(--mh-bg);
+    --mh-plate-keyline: var(--mh-control-line);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 22px;
+    padding: 2px 8px;
+    font-family: var(--mh-font-mono);
+    font-size: var(--mh-text-2xs);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    line-height: 1.2;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--mh-fg);
+  }
+
+  .mh-status {
+    --_c: var(--mh-state-void);
+    --mh-plate-fill: color-mix(in srgb, var(--_c) 12%, var(--mh-bg));
+    --mh-plate-keyline: color-mix(in srgb, var(--_c) 55%, transparent);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 22px;
+    padding: 2px 8px;
+    font-family: var(--mh-font-mono);
+    font-size: var(--mh-text-2xs);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    line-height: 1.2;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--_c);
+  }
+  .mh-status::after {
+    content: "";
+    order: -1;
+    width: 6px;
+    height: 6px;
+    background: currentColor;
+  }
+
+  [data-status="open"] { --_c: var(--mh-state-open); }
+  [data-status="claimed"],
+  [data-status="collected"],
+  [data-status="delivering"] { --_c: var(--mh-state-active); }
+  [data-status="delivered"] { --_c: var(--mh-state-window); }
+  [data-status="settled"] { --_c: var(--mh-state-settled); }
+  [data-status="resolved"] { --_c: var(--mh-state-resolved); }
+  [data-status="disputed"] { --_c: var(--mh-state-disputed); }
+  [data-status="expired"],
+  [data-status="cancelled"] { --_c: var(--mh-state-void); }
+
+  /* Ended without settling: hatched, so the state survives without colour */
+  .mh-status:is([data-status="expired"], [data-status="cancelled"], [data-status="disputed"]) {
+    --mh-plate-fill: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--_c) 28%, transparent) 0 1px, transparent 1px 5px), var(--mh-bg);
+  }
+}

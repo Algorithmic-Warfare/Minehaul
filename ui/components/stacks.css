@@ -1,0 +1,209 @@
+/*
+ * Stacks — every square is countable quantity, every job is one contiguous
+ * run, so a band split into many small jobs looks busy instead of thin.
+ * Columns are bands (reward rate, lifecycle stage, network…). An optional
+ * strip below places each job on a true scale with a "lens" threshold.
+ *
+ * js/stacks.js builds the markup. Square states:
+ *   data-shade="a|b"   alternating jobs within a column
+ *   data-match         meets the pinned condition (accent)
+ *   data-hazard        carries a risk trait (hatched)
+ *   data-selected      the selected job
+ * Override --mh-data-match on the root to recolour matches, e.g. to the brand.
+ */
+@layer mh.components {
+  .mh-stacks {
+    grid-template-columns: minmax(0, 1fr);
+    --_cell-gap: 3px;
+    --_cell-cut: calc(2.5px * var(--mh-cut-scale));
+    display: grid;
+    gap: var(--mh-space-5);
+    min-width: 0;
+  }
+
+  /* Head */
+  .mh-stacks__head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--mh-space-4);
+  }
+  .mh-stacks__title {
+    margin: 0;
+    font-family: var(--mh-font-display);
+    font-size: var(--mh-text-xl);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+  }
+  .mh-stacks__sub { margin: 4px 0 0; max-width: 64ch; font-size: var(--mh-text-sm); color: var(--mh-muted); }
+  .mh-stacks__controls { display: flex; flex-wrap: wrap; gap: var(--mh-space-3); align-items: center; }
+
+  .mh-stacks__lens {
+    display: flex;
+    align-items: center;
+    gap: var(--mh-space-2);
+    min-height: 36px;
+    padding: 0 var(--mh-space-3);
+    font: 700 var(--mh-text-xs) / 1 var(--mh-font-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mh-accent-text);
+    --mh-plate-fill: var(--mh-bg);
+    --mh-plate-keyline: color-mix(in srgb, var(--mh-accent) 60%, transparent);
+  }
+  .mh-stacks__lens input { width: 120px; accent-color: var(--mh-accent); }
+  .mh-stacks__lens output { min-width: 7ch; font-variant-numeric: tabular-nums; }
+
+  .mh-stacks__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--mh-space-2) var(--mh-space-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--mh-text-xs);
+    color: var(--mh-muted);
+  }
+  .mh-stacks__legend li { display: inline-flex; align-items: center; gap: 6px; }
+  .mh-stacks__legend .mh-sq { width: 12px; }
+
+  /* Columns */
+  .mh-stacks__cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+    border-top: 1px solid var(--mh-line);
+  }
+  .mh-stacks__col {
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    gap: var(--mh-space-3);
+    min-width: 0;
+    padding: var(--mh-space-4) var(--mh-space-4) var(--mh-space-2);
+    border-left: 1px solid var(--mh-line);
+  }
+  .mh-stacks__col:first-child { border-left: 0; padding-left: 0; }
+  .mh-stacks__col-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .mh-stacks__col-head h4 { margin: 0; font-family: var(--mh-font-display); font-size: var(--mh-text-md); font-weight: 700; }
+  .mh-stacks__col-head span { font-family: var(--mh-font-mono); font-size: var(--mh-text-2xs); letter-spacing: 0.06em; color: var(--mh-muted); white-space: nowrap; }
+  .mh-stacks__total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-family: var(--mh-font-mono); }
+  .mh-stacks__total b { font-size: var(--mh-text-2xl); line-height: 1; font-weight: 500; font-variant-numeric: tabular-nums slashed-zero; }
+  .mh-stacks__total small { font-size: var(--mh-text-xs); color: var(--mh-muted); }
+  .mh-stacks__busy { color: var(--mh-accent-text); }
+
+  .mh-stacks__grid {
+    display: grid;
+    grid-template-columns: repeat(var(--per-row, 12), 1fr);
+    gap: var(--_cell-gap);
+    align-content: end;
+    padding-bottom: var(--mh-space-3);
+    border-bottom: 1px solid var(--mh-data-rule);
+  }
+
+  /* Squares, shared by the grid, the strip and the legend */
+  .mh-sq {
+    --_sq: var(--mh-data-a);
+    display: block;
+    aspect-ratio: 1;
+    background: var(--_sq);
+    clip-path: polygon(var(--_cell-cut, 0px) 0, 100% 0, 100% calc(100% - var(--_cell-cut, 0px)), calc(100% - var(--_cell-cut, 0px)) 100%, 0 100%, 0 var(--_cell-cut, 0px));
+  }
+  .mh-sq[data-shade="b"] { --_sq: var(--mh-data-b); }
+  .mh-sq[data-match] { --_sq: var(--mh-data-match); }
+  .mh-sq[data-hazard] {
+    background: repeating-linear-gradient(-45deg, var(--_hz, var(--mh-data-hatch)) 0 1.5px, transparent 1.5px 4.5px), var(--mh-data-ground);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--_hz, var(--mh-data-hatch)) 40%, transparent);
+  }
+  .mh-sq[data-hazard][data-match] { --_hz: var(--mh-data-match); }
+  .mh-sq[data-selected] {
+    background: var(--mh-data-select);
+    box-shadow: inset 0 0 0 1px var(--mh-data-ground);
+  }
+  .mh-sq[data-empty] { visibility: hidden; }
+  .mh-stacks__grid .mh-sq { cursor: pointer; }
+
+  /* Rows */
+  .mh-stacks__rows { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
+  .mh-stacks__row {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr) auto auto 1.2em;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 0;
+    background: transparent;
+    color: var(--mh-fg);
+    font: var(--mh-text-sm) / 1.2 var(--mh-font-mono);
+    font-variant-numeric: tabular-nums slashed-zero;
+    text-align: left;
+    cursor: pointer;
+  }
+  .mh-stacks__row:hover { background: color-mix(in srgb, var(--mh-fg) 5%, transparent); }
+  .mh-stacks__row[aria-pressed="true"] { background: var(--mh-surface-2); }
+  .mh-stacks__row:focus-visible { outline: 2px solid var(--mh-accent); outline-offset: -2px; }
+  .mh-stacks__row .mh-sq { width: 12px; }
+  .mh-stacks__row-metric { color: var(--mh-muted); }
+  .mh-stacks__row-size { text-align: right; }
+  .mh-stacks__row-flag { text-align: center; color: var(--mh-accent-text); }
+  .mh-stacks__row-flag[data-hazard] { color: var(--mh-warn); }
+  .mh-stacks__empty { padding: 6px 8px; font-size: var(--mh-text-xs); color: var(--mh-muted); }
+
+  /* Strip: true-scale placement, bar height = size */
+  .mh-strip { display: grid; gap: var(--mh-space-2); min-width: 0; }
+  .mh-strip__plot {
+    position: relative;
+    height: 150px;
+    margin: 28px 0 0;
+    border-bottom: 1px solid var(--mh-trim);
+  }
+  .mh-strip__bar {
+    position: absolute;
+    bottom: 0;
+    width: max(6px, 1.1%);
+    aspect-ratio: auto;
+    translate: -50% 0;
+    cursor: pointer;
+    --_cell-cut: 0px;
+  }
+  .mh-strip__band {
+    position: absolute;
+    top: -24px;
+    bottom: 0;
+    border-left: 1px dashed var(--mh-trim);
+  }
+  .mh-strip__band em,
+  .mh-strip__lens em {
+    position: absolute;
+    top: 0;
+    left: 5px;
+    font: 400 var(--mh-text-2xs) / 1 var(--mh-font-mono);
+    font-style: normal;
+    color: var(--mh-muted);
+    white-space: nowrap;
+  }
+  .mh-strip__lens {
+    position: absolute;
+    top: -24px;
+    bottom: 0;
+    border-left: 2px solid var(--mh-accent);
+    pointer-events: none;
+  }
+  .mh-strip__lens em { top: 14px; font-weight: 700; color: var(--mh-accent-text); letter-spacing: 0.06em; }
+  .mh-strip__tag {
+    position: absolute;
+    translate: -50% -6px;
+    padding: 1px 4px;
+    background: var(--mh-bg);
+    font: 700 var(--mh-text-2xs) / 1.2 var(--mh-font-mono);
+    color: var(--mh-fg);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .mh-strip__axis { position: relative; height: 16px; font: var(--mh-text-2xs) / 1 var(--mh-font-mono); color: var(--mh-muted); }
+  .mh-strip__axis span { position: absolute; translate: -50% 0; white-space: nowrap; }
+  .mh-strip__axis span:first-child { translate: 0 0; }
+  .mh-strip__axis span:last-child { translate: -100% 0; }
+  .mh-strip__note { font-size: var(--mh-text-2xs); color: var(--mh-muted); }
+}

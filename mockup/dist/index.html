@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101519">
+  <meta name="description" content="Explore Minehaul, a logistics network for the frontier. An interactive demo of funded cargo transfers between Smart Storage Units.">
+  <title>Job board · Minehaul</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-box" viewBox="0 0 24 24"><path d="m12 3 9 5v9l-9 5-9-5V8l9-5Zm0 10v9M3 8l9 5 9-5M7.5 5.5l9 5v5"/></symbol>
+<symbol id="i-network" viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><path d="m10.5 8-4 8m7-8 4 8M8 19h8"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24"><path d="M20 8V5H5a2 2 0 0 0-2 2v12h18V9H5a2 2 0 0 1 0-4m16 7h-6v5h6"/><path d="M17 14.5h1"/></symbol>
+<symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M6 18 18 6M6 6h12v12"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-11v2"/></symbol>
+</defs></svg>
+<aside class="sidebar">
+  <a class="brand" href="?view=board" aria-label="Minehaul home"><span class="brand-mark"><i></i><i></i><i></i></span>MINEHAUL<span class="brand-dot">®</span></a>
+  <div class="workspace"><span class="workspace-symbol">F</span><div>Frontier workspace<small>Logistics operations</small></div><span class="live-dot"></span></div>
+  <div class="nav-label">OPERATIONS</div>
+  <nav aria-label="Main navigation">
+    <a href="?view=board" data-view="board" class="nav-item active"><svg class="icon"><use href="#i-grid"/></svg>Job board<span class="nav-count" id="board-count">8</span></a>
+    <a href="?view=hauls" data-view="hauls" class="nav-item"><svg class="icon"><use href="#i-box"/></svg>My hauls<span class="nav-count" id="haul-count">0</span></a>
+    <a href="?view=networks" data-view="networks" class="nav-item"><svg class="icon"><use href="#i-network"/></svg>Networks</a>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="frontier-card"><span class="small-caps">BUILT FOR THE FRONTIER</span><div>Every delivery<br>builds something.</div><p>Infrastructure moves forward<br>because you do.</p><span class="corner-cross">+</span></div>
+    <button class="guide-button" id="guide"><svg class="icon"><use href="#i-info"/></svg>Demo guide<svg class="icon"><use href="#i-arrow-up"/></svg></button>
+    <div class="sidebar-foot"><span class="live-dot"></span>Prototype environment<span>v.01</span></div>
+  </div>
+</aside>
+<div class="app-shell">
+  <header class="topbar"><div class="breadcrumb">Workspace<span>/</span><strong id="breadcrumb">Job board</strong></div><div class="header-actions"><span class="demo-badge">DEMO MODE</span><button id="wallet" class="button outline"><svg class="icon"><use href="#i-wallet"/></svg><span>Connect demo wallet</span></button></div></header>
+  <main id="main">
+    <div class="page-heading"><div><div class="eyebrow"><span class="short-line"></span> DECENTRALIZED LOGISTICS / EVE FRONTIER</div><h1 id="page-title">Keep the frontier moving.</h1><p id="page-subtitle">Find your next haul. Deliver what matters. Get rewarded.</p></div><button class="text-button" id="how-it-works">How hauling works <svg class="icon"><use href="#i-arrow-up"/></svg></button></div>
+    <section class="network-hero" aria-labelledby="network-heading">
+      <div class="hero-copy"><span class="small-caps"><span class="live-dot"></span> THE NETWORK AT A GLANCE</span><h2 id="network-heading">Connected by cargo.<br>Powered by haulers.</h2><p>Independent networks.<br>One shared frontier.</p><button class="hero-link" id="explore-networks">Explore networks <svg class="icon"><use href="#i-arrow"/></svg></button></div>
+      <div class="star-map" aria-label="Schematic of demo storage endpoints; not a navigation map">
+        <svg class="map-svg" viewBox="0 0 760 300" role="img" aria-labelledby="map-title"><title id="map-title">Demo endpoint connections between Aster, Meridian, Halcyon, and Kepler storage units. Positions are illustrative.</title><defs><radialGradient id="planet"><stop stop-color="#54717b"/><stop offset=".55" stop-color="#253942"/><stop offset="1" stop-color="#121d24"/></radialGradient><pattern id="map-grid" width="38" height="38" patternUnits="userSpaceOnUse"><path d="M38 0H0V38" fill="none" stroke="#91b3c1" stroke-opacity=".065"/></pattern></defs>
+        <rect width="760" height="300" fill="url(#map-grid)"/>
+        <g fill="#9ab5c2" opacity=".55"><circle cx="31" cy="52" r="1"/><circle cx="140" cy="214" r="1"/><circle cx="225" cy="35" r="1.4"/><circle cx="403" cy="22" r="1"/><circle cx="602" cy="244" r="1.4"/><circle cx="700" cy="95" r="1"/><circle cx="330" cy="270" r="1"/><circle cx="480" cy="210" r="1"/><circle cx="546" cy="40" r="1"/><circle cx="690" cy="270" r="1"/></g>
+        <g fill="none" stroke="#75909c" stroke-opacity=".18"><ellipse cx="390" cy="150" rx="305" ry="105" transform="rotate(-14 390 150)"/><ellipse cx="390" cy="150" rx="235" ry="72" transform="rotate(-14 390 150)"/><circle cx="390" cy="150" r="115"/><path d="M390 16v268M60 150h650" stroke-dasharray="3 7"/></g>
+        <circle cx="390" cy="150" r="46" fill="url(#planet)" stroke="#8aa9b4" stroke-opacity=".3"/><ellipse cx="390" cy="150" rx="61" ry="19" transform="rotate(-30 390 150)" fill="none" stroke="#72929e" stroke-opacity=".32"/>
+        <g fill="none" stroke-width="1.5"><path class="map-connection" d="M180 168Q300 64 480 89" stroke="#9bcbd4"/><path d="M180 168Q330 240 570 210" stroke="#92a3ad" stroke-opacity=".5" stroke-dasharray="4 6"/><path d="M480 89Q540 123 570 210" stroke="#92a3ad" stroke-opacity=".5" stroke-dasharray="4 6"/><path d="M180 168 271 62" stroke="#92a3ad" stroke-opacity=".35" stroke-dasharray="4 6"/></g>
+        <g class="map-node"><circle cx="180" cy="168" r="15" fill="#142a30" stroke="#83c7cc" stroke-opacity=".4"/><circle cx="180" cy="168" r="5" fill="#9cd6d9"/><circle cx="480" cy="89" r="13" fill="#15272c" stroke="#83c7cc" stroke-opacity=".4"/><circle cx="480" cy="89" r="4" fill="#9cd6d9"/><circle cx="570" cy="210" r="5" fill="#bdc7cb"/><circle cx="271" cy="62" r="4" fill="#bdc7cb"/></g>
+        <g font-family="monospace" font-size="10" fill="#b9c5cb" letter-spacing="1"><text x="125" y="205">ASTER / SSU-01</text><text x="501" y="79">MERIDIAN / SSU-04</text><text x="590" y="214">KEPLER</text><text x="208" y="42">HALCYON</text></g>
+        <g transform="translate(305 102) rotate(-14)"><rect x="-5" y="-5" width="10" height="10" fill="#d9ecee"/><path d="m-3 0 3-2 3 2-3 2Z" fill="#31505c"/></g>
+        </svg>
+        <div class="map-caption"><span><i></i> Registered storage unit</span><span>SCHEMATIC · DEMO DATA</span></div>
+      </div>
+    </section>
+    <section class="metrics" aria-label="Demo network statistics"><div><span class="metric-icon"><svg class="icon"><use href="#i-box"/></svg></span><div><span class="metric-label">Available jobs</span><strong id="available-stat">08</strong></div><span class="metric-note">Ready to claim</span></div><div><span class="metric-icon"><svg class="icon"><use href="#i-network"/></svg></span><div><span class="metric-label">Active networks</span><strong>03</strong></div><span class="metric-note">Across the frontier</span></div><div><span class="metric-icon"><svg class="icon"><use href="#i-wallet"/></svg></span><div><span class="metric-label">Available rewards</span><strong id="rewards-stat">111,500 <small>CR</small></strong></div><span class="metric-note">Demo credits</span></div></section>
+    <section id="jobs-section" aria-labelledby="jobs-title">
+      <div class="section-heading"><h2 id="jobs-title">Available jobs <span id="jobs-count">8</span></h2><span class="section-note"><span class="live-dot"></span> Funded & ready for pickup</span></div>
+      <div class="toolbar"><div class="search-wrap"><svg class="icon"><use href="#i-search"/></svg><label class="sr-only" for="search">Search jobs, cargo or endpoints</label><input id="search" type="search" placeholder="Search jobs, cargo, or endpoints…" autocomplete="off"><button id="clear-search" class="icon-button" aria-label="Clear search" hidden><svg class="icon"><use href="#i-close"/></svg></button></div><div class="filter-controls"><label class="sr-only" for="network-filter">Filter by network</label><select id="network-filter"><option value="all">All networks</option><option value="Aster Collective">Aster Collective</option><option value="Meridian Union">Meridian Union</option><option value="Outer Rim Guild">Outer Rim Guild</option></select><label class="sr-only" for="sort">Sort jobs</label><select id="sort"><option value="newest">Newest first</option><option value="reward">Highest reward</option><option value="collateral">Lowest collateral</option></select></div></div>
+      <div class="table-wrap"><table><thead><tr><th scope="col">TRANSFER / ENDPOINTS</th><th scope="col">CARGO</th><th scope="col">HAULER REWARD</th><th scope="col">COLLATERAL</th><th scope="col">TIME LIMIT</th><th scope="col"><span class="sr-only">Details</span></th></tr></thead><tbody id="job-rows"></tbody></table><div id="empty-state" class="empty-state" hidden><svg class="icon"><use href="#i-search"/></svg><h3>No matching jobs</h3><p>Try a different endpoint, cargo, or network.</p><button id="reset-filters" class="button outline">Clear filters</button></div></div>
+      <div class="table-footer"><span id="results-count" role="status">Showing 8 jobs</span><span>Transfer jobs only <span class="separator">/</span> All amounts in demo CR</span></div>
+    </section>
+    <section id="networks-section" hidden aria-labelledby="networks-title"><div class="section-heading"><h2 id="networks-title">Registered networks</h2><span class="section-note">3 demo networks · 8 endpoints</span></div><div id="network-cards" class="network-cards"></div></section>
+    <footer class="main-footer"><span class="footer-brand">MINEHAUL<span>Infrastructure for an independent frontier.</span></span><span>Interactive concept <span class="separator">/</span> No real transactions</span></footer>
+  </main>
+</div>
+<dialog id="detail-dialog" aria-labelledby="detail-title"><div class="dialog-head"><span class="eyebrow">TRANSFER CONTRACT</span><button class="icon-button close-dialog" aria-label="Close job details"><svg class="icon"><use href="#i-close"/></svg></button></div><div id="detail-content"></div></dialog>
+<dialog id="guide-dialog" aria-labelledby="guide-title"><div class="dialog-head"><span class="eyebrow">WELCOME TO MINEHAUL</span><button class="icon-button close-dialog" aria-label="Close demo guide"><svg class="icon"><use href="#i-close"/></svg></button></div><h2 id="guide-title">Your next haul starts here.</h2><p class="dialog-intro">An interactive look at logistics on the frontier. All activity stays in this browser.</p><ol class="guide-steps"><li><strong>Find a transfer</strong><p>Compare endpoints, cargo, time limits and rewards on the job board.</p></li><li><strong>Claim with collateral</strong><p>Connect a demo wallet and reserve a job. Collateral uses the reward asset; it is not a valuation of the cargo.</p></li><li><strong>Collect, deliver, settle</strong><p>Follow the simulated lifecycle in My hauls. Delivery starts a dispute window; settlement releases the reward and collateral.</p></li></ol><div class="info-note">This is a product mockup. Wallets, balances, delivery verification and time passage are simulated. The protocol does not prescribe the travel path.</div><div class="dialog-actions"><button id="reset-demo" class="button outline">Reset demo progress</button><button class="button primary close-dialog">Explore jobs <svg class="icon"><use href="#i-arrow"/></svg></button></div></dialog>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

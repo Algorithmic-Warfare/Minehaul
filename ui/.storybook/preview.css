@@ -1,0 +1,22 @@
+/* Storybook canvas only. Unlayered, so it sits above the library's layers. */
+:root[data-mh-theme="ink"] { color-scheme: dark; }
+:root[data-mh-theme="paper"] { color-scheme: light; }
+
+html, body { background: var(--mh-bg); }
+body.mh-root { margin: 0; }
+
+/* Docs pages: story previews take the canvas theme */
+.docs-story { background: var(--mh-bg) !important; color: var(--mh-fg); }
+.sbdocs .mh-root, .docs-story > div { font-family: var(--mh-font-body); }
+
+/* Shared story layout helpers */
+.sb-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--mh-space-5); }
+.sb-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mh-space-3); }
+.sb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--sb-min, 220px), 1fr)); gap: var(--mh-space-4); }
+.sb-label { display: block; margin-bottom: var(--mh-space-2); }
+.sb-caption { margin: 0; font-size: var(--mh-text-xs); color: var(--mh-muted); max-width: 70ch; }
+.sb-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--mh-space-3); }
+.sb-section + .sb-section { padding-top: var(--mh-space-5); border-top: 1px solid var(--mh-line); }
+.sb-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: var(--mh-space-5); }
+.sb-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 0; }
+.sb-pair > [data-mh-theme] { padding: var(--mh-space-5); background: var(--mh-bg); color: var(--mh-fg); }

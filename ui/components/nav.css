@@ -1,0 +1,272 @@
+/*
+ * Navigation: top bar, interlocking nav list, tabs, breadcrumbs, menu, pager.
+ *
+ *   <header class="mh-topbar">
+ *     <a class="mh-topbar__brand" href="/"><span class="mh-mark"><i></i>…×9</span>Minehaul</a>
+ *     <nav aria-label="Primary"><ul class="mh-navlist">
+ *       <li><a class="mh-plate mh-navitem" href="/board" aria-current="page"><span class="mh-lamp"></span>Board</a></li>
+ *       <li><a class="mh-plate mh-navitem" href="/hauls"><span class="mh-lamp"></span>My hauls</a></li>
+ *     </ul></nav>
+ *     <div class="mh-topbar__actions">…</div>
+ *   </header>
+ */
+@layer mh.components {
+  /* Brand mark: the 3 × 3 stack, one lit cell */
+  .mh-mark {
+    --_c: 6px;
+    display: inline-grid;
+    grid-template-columns: repeat(3, var(--_c));
+    gap: 2px;
+    flex: none;
+  }
+  .mh-mark i { width: var(--_c); height: var(--_c); background: color-mix(in srgb, currentColor 35%, transparent); }
+  .mh-mark i:nth-child(n + 7) { background: currentColor; }
+  .mh-mark i:nth-child(5) { background: var(--mh-signal); }
+  .mh-mark--lg { --_c: 14px; gap: 3px; }
+
+  /* Top bar */
+  .mh-topbar {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: var(--mh-space-5);
+    min-height: 64px;
+    padding: 0 max(var(--mh-space-4), env(safe-area-inset-right, 0px)) 0 max(var(--mh-space-4), env(safe-area-inset-left, 0px));
+    border-bottom: 1px solid var(--mh-line);
+    background: var(--mh-bg);
+  }
+  .mh-topbar__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--mh-fg);
+    font: 700 var(--mh-text-md) / 1 var(--mh-font-display);
+    letter-spacing: 0.02em;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  /* The nav shrinks and scrolls so brand and actions always stay on screen */
+  :is(.mh-topbar__nav, .mh-topbar > nav) { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .mh-topbar__actions { display: flex; flex: none; align-items: center; gap: var(--mh-space-2); margin-left: auto; }
+  @media (max-width: 640px) {
+    .mh-topbar { gap: var(--mh-space-3); }
+    /* Names stay available to assistive tech; only the mark and identicon show */
+    .mh-topbar__brand > :not(.mh-mark),
+    .mh-wallet > span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .mh-wallet { padding-right: 6px; }
+  }
+
+  /* Wallet / identity chip */
+  .mh-wallet {
+    --mh-plate-fill: var(--mh-bg);
+    --mh-plate-keyline: var(--mh-control-line);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 0 12px 0 6px;
+    border: 0;
+    color: var(--mh-fg);
+    font: 700 var(--mh-text-xs) / 1.15 var(--mh-font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: left;
+    cursor: pointer;
+  }
+  .mh-wallet small { display: block; font-weight: 400; color: var(--mh-muted); }
+  @media (hover: hover) { .mh-wallet:hover { --mh-plate-keyline: var(--mh-fg); } }
+  .mh-wallet:focus-visible { --mh-plate-keyline: var(--mh-accent); --mh-plate-keyline-width: 2px; outline: none; }
+
+  /* Interlocking nav list */
+  .mh-navlist {
+    --_B: var(--mh-cut-md);
+    --_S: var(--mh-cut-xs);
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .mh-navlist > li + li { margin-left: calc(var(--mh-seam) - var(--_B)); }
+  /* A nav that holds a list scrolls sideways instead of widening the page */
+  :where(nav):has(> .mh-navlist) { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .mh-navitem {
+    --mh-cut-tl: var(--_B);
+    --mh-cut-br: var(--_B);
+    --mh-cut-tr: var(--_S);
+    --mh-cut-bl: var(--_S);
+    --mh-plate-fill: var(--mh-bg);
+    --_inset: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 0 18px 0 var(--_inset);
+    border: 0;
+    color: var(--mh-fg);
+    font: 700 var(--mh-text-sm) / 1 var(--mh-font-mono);
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .mh-navlist > li + li > .mh-navitem {
+    --_inset: calc(16px + var(--_B) - var(--_S));
+    --mh-plate-clip: var(--_notch-outer);
+    --mh-plate-clip-inner: var(--_notch-inner);
+  }
+  .mh-navitem[aria-current] { --mh-plate-fill: var(--mh-surface); }
+  .mh-navitem:focus-visible { --mh-plate-keyline: var(--mh-fg); --mh-plate-keyline-width: 2px; outline: none; }
+  .mh-navitem .mh-count { margin-left: 2px; }
+
+  /* Count chip, for tabs, nav and bells */
+  .mh-count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    background: var(--mh-surface-2);
+    color: var(--mh-fg);
+    font: 700 var(--mh-text-2xs) / 1 var(--mh-font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .mh-count--accent { background: var(--mh-accent); color: var(--mh-accent-fg); }
+
+  /* Badge on an icon button */
+  .mh-badge-wrap { position: relative; display: inline-flex; }
+  .mh-badge-wrap > .mh-count {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: var(--mh-accent);
+    color: var(--mh-accent-fg);
+    box-shadow: 0 0 0 2px var(--mh-bg);
+    pointer-events: none;
+  }
+  .mh-badge-wrap > .mh-count:empty { min-width: 8px; width: 8px; height: 8px; padding: 0; }
+
+  /* Tabs */
+  .mh-tabs { display: grid; gap: var(--mh-space-4); min-width: 0; }
+  .mh-tabs__list {
+    display: flex;
+    gap: var(--mh-space-1);
+    overflow-x: auto;
+    border-bottom: 1px solid var(--mh-line);
+    scrollbar-width: none;
+  }
+  .mh-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 var(--mh-space-3);
+    border: 0;
+    background: none;
+    color: var(--mh-muted);
+    font: 700 var(--mh-text-xs) / 1 var(--mh-font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .mh-tab::after {
+    content: "";
+    position: absolute;
+    left: var(--mh-space-3);
+    right: var(--mh-space-3);
+    bottom: -1px;
+    height: 3px;
+    background: var(--mh-accent);
+    scale: 0 1;
+    transform-origin: left;
+    transition: scale var(--mh-slow) var(--mh-ease);
+  }
+  .mh-tab:hover { color: var(--mh-fg); }
+  .mh-tab[aria-selected="true"] { color: var(--mh-fg); }
+  .mh-tab[aria-selected="true"]::after { scale: 1 1; }
+  .mh-tab:focus-visible { outline: 2px solid var(--mh-accent); outline-offset: -2px; }
+  .mh-tabpanel:focus-visible { outline: 2px solid var(--mh-accent); outline-offset: 4px; }
+
+  /* Breadcrumbs */
+  .mh-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; padding: 0; list-style: none; font: var(--mh-text-xs) / 1.3 var(--mh-font-mono); }
+  .mh-crumbs li { display: inline-flex; align-items: center; gap: 10px; }
+  .mh-crumbs li + li::before {
+    content: "";
+    width: 5px;
+    height: 8px;
+    background: var(--mh-trim);
+    clip-path: polygon(0 0, 40% 0, 100% 50%, 40% 100%, 0 100%, 60% 50%);
+  }
+  .mh-crumbs a { color: var(--mh-muted); text-decoration: none; }
+  .mh-crumbs a:hover { color: var(--mh-fg); text-decoration: underline; text-underline-offset: 3px; }
+  .mh-crumbs [aria-current] { color: var(--mh-fg); font-weight: 700; }
+
+  /* Menu */
+  .mh-menu-anchor { position: relative; display: inline-flex; }
+  .mh-menu {
+    --mh-plate-fill: var(--mh-bg);
+    --mh-plate-keyline: var(--mh-trim);
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 300;
+    display: grid;
+    min-width: 220px;
+    padding: 4px;
+    animation: mh-drop var(--mh-fast) var(--mh-ease);
+  }
+  .mh-menu--end { left: auto; right: 0; }
+  .mh-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 36px;
+    padding: 0 10px;
+    border: 0;
+    background: none;
+    color: var(--mh-fg);
+    font: var(--mh-text-sm) / 1.2 var(--mh-font-mono);
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .mh-menu__item .mh-kbd { margin-left: auto; }
+  .mh-menu__item:is(:hover, :focus-visible) { background: var(--mh-surface-2); outline: none; }
+  .mh-menu__item:is(:hover, :focus-visible) .mh-lamp { background: var(--mh-accent); box-shadow: 0 0 8px 1px color-mix(in srgb, var(--mh-accent) 55%, transparent); }
+  .mh-menu__item--danger { color: var(--mh-alert); }
+  .mh-menu__item:disabled { color: var(--mh-muted); cursor: not-allowed; background: none; }
+  .mh-menu__sep { margin: 4px 0; border: 0; border-top: 1px solid var(--mh-line); }
+  .mh-menu__label { padding: 8px 10px 4px; }
+
+  /* Pager */
+  .mh-pager { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .mh-pager__page {
+    display: inline-grid;
+    place-items: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 6px;
+    border: 1px solid transparent;
+    background: none;
+    color: var(--mh-muted);
+    font: 700 var(--mh-text-xs) / 1 var(--mh-font-mono);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  .mh-pager__page:hover { color: var(--mh-fg); border-color: var(--mh-line); }
+  .mh-pager__page[aria-current] { background: var(--mh-fg); color: var(--mh-bg); }
+  .mh-pager__gap { padding: 0 4px; color: var(--mh-muted); }
+
+  @keyframes mh-drop { from { opacity: 0; translate: 0 -4px; } }
+}
