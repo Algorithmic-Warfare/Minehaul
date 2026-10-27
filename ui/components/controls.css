@@ -1,0 +1,219 @@
+/*
+ * Controls: segmented control, icon button, checkbox, radio, toggle,
+ * range, stepper, select and keyboard hint.
+ *
+ *   <div class="mh-seg" role="group"><button aria-pressed="true">Rate</button>…</div>
+ *   <button class="mh-plate mh-iconbtn" aria-label="Refresh">…icon…</button>
+ *   <label class="mh-check"><input type="checkbox"> Only my networks</label>
+ *   <label class="mh-check"><input type="radio" name="sort"> Newest</label>
+ *   <label class="mh-toggle"><input type="checkbox" role="switch"> Auto-finalize</label>
+ *   <input type="range" class="mh-range" style="--mh-range-cells: 12">
+ *   <div class="mh-plate mh-field mh-stepper" data-mh-stepper>…</div>
+ *   <label class="mh-plate mh-field mh-select"><select>…</select></label>
+ */
+@layer mh.components {
+  /* Segmented control */
+  .mh-seg { display: inline-flex; flex-wrap: wrap; }
+  .mh-seg button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 var(--mh-space-3);
+    border: 1px solid var(--mh-control-line);
+    background: var(--mh-bg);
+    color: var(--mh-muted);
+    font: 700 var(--mh-text-xs) / 1 var(--mh-font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background var(--mh-fast), color var(--mh-fast);
+  }
+  .mh-seg button + button { border-left: 0; }
+  .mh-seg button:hover { color: var(--mh-fg); }
+  .mh-seg button[aria-pressed="true"],
+  .mh-seg button[aria-selected="true"] { background: var(--mh-fg); color: var(--mh-bg); border-color: var(--mh-fg); }
+  .mh-seg button:focus-visible { outline: 2px solid var(--mh-accent); outline-offset: 2px; position: relative; z-index: 1; }
+
+  /* Icon button: a small octagon */
+  .mh-iconbtn {
+    --mh-cut-tl: var(--mh-cut-sm);
+    --mh-cut-br: var(--mh-cut-sm);
+    --mh-cut-tr: calc(var(--mh-cut-xs) * .75);
+    --mh-cut-bl: calc(var(--mh-cut-xs) * .75);
+    --mh-plate-keyline: var(--mh-control-line);
+    --mh-plate-fill: var(--mh-bg);
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    color: var(--mh-fg);
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .mh-iconbtn--sm { width: 32px; height: 32px; }
+  @media (hover: hover) { .mh-iconbtn:hover { --mh-plate-keyline: var(--mh-fg); } }
+  .mh-iconbtn:focus-visible { --mh-plate-keyline: var(--mh-accent); --mh-plate-keyline-width: 2px; outline: none; }
+  .mh-iconbtn:active { --mh-plate-fill: var(--mh-surface-2); }
+  .mh-iconbtn[aria-pressed="true"] { --mh-plate-fill: var(--mh-fg); color: var(--mh-bg); }
+  .mh-iconbtn:disabled { color: var(--mh-muted); cursor: not-allowed; --mh-plate-fill: var(--mh-hatch-soft), var(--mh-bg); }
+
+  /* Checkbox and radio */
+  .mh-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 28px;
+    font-size: var(--mh-text-sm);
+    cursor: pointer;
+  }
+  .mh-check input {
+    appearance: none;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    border: 1px solid var(--mh-control-line);
+    background: var(--mh-bg);
+    cursor: pointer;
+    transition: border-color var(--mh-fast), background var(--mh-fast);
+  }
+  .mh-check input::before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    scale: 0;
+    background: var(--mh-accent-fg);
+    transition: scale var(--mh-fast) var(--mh-ease);
+  }
+  /* Checkbox: a filled cell with a pixel tick */
+  .mh-check input[type="checkbox"]::before {
+    clip-path: polygon(0 50%, 20% 50%, 40% 70%, 80% 10%, 100% 10%, 100% 30%, 40% 100%, 0 70%);
+  }
+  .mh-check input[type="checkbox"]:checked { background: var(--mh-accent); border-color: var(--mh-accent); }
+  .mh-check input[type="checkbox"]:indeterminate { background: var(--mh-accent); border-color: var(--mh-accent); }
+  .mh-check input[type="checkbox"]:indeterminate::before { clip-path: inset(40% 0); scale: 1; }
+  /* Radio: a diamond cell in a square frame. Circles stay reserved for network nodes. */
+  .mh-check input[type="radio"]::before {
+    background: var(--mh-accent);
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  }
+  .mh-check input[type="radio"]:checked { border-color: var(--mh-accent); }
+  .mh-check input:checked::before { scale: 1; }
+  .mh-check input:focus-visible { outline: 2px solid var(--mh-accent); outline-offset: 2px; }
+  .mh-check:hover input:not(:checked, :disabled) { border-color: var(--mh-fg); }
+  .mh-check:has(input:disabled) { color: var(--mh-muted); cursor: not-allowed; }
+  .mh-check input:disabled { background: var(--mh-hatch-soft), var(--mh-bg); cursor: not-allowed; }
+  .mh-check small { display: block; font-size: var(--mh-text-2xs); color: var(--mh-muted); }
+
+  /* Toggle: a two-cell track whose thumb slides */
+  .mh-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 28px;
+    font-size: var(--mh-text-sm);
+    cursor: pointer;
+  }
+  .mh-toggle input {
+    appearance: none;
+    position: relative;
+    flex: none;
+    width: 40px;
+    height: 22px;
+    margin: 0;
+    border: 1px solid var(--mh-control-line);
+    background: repeating-linear-gradient(90deg, var(--mh-line) 0 1px, transparent 1px 5px), var(--mh-bg);
+    cursor: pointer;
+    transition: background var(--mh-fast), border-color var(--mh-fast);
+  }
+  .mh-toggle input::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+    background: var(--mh-muted);
+    clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
+    transition: translate var(--mh-slow) var(--mh-ease), background var(--mh-fast);
+  }
+  .mh-toggle input:checked { border-color: var(--mh-accent); background: color-mix(in srgb, var(--mh-accent) 22%, var(--mh-bg)); }
+  .mh-toggle input:checked::before { translate: 18px 0; background: var(--mh-accent); }
+  .mh-toggle input:focus-visible { outline: 2px solid var(--mh-accent); outline-offset: 2px; }
+  .mh-toggle:has(input:disabled) { color: var(--mh-muted); cursor: not-allowed; }
+  .mh-toggle input:disabled { cursor: not-allowed; background: var(--mh-hatch-soft), var(--mh-bg); }
+
+  /* Range: a ladder of cells with a chamfered thumb */
+  .mh-range {
+    --mh-range-cells: 20;
+    appearance: none;
+    width: 100%;
+    min-width: 120px;
+    height: 24px;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .mh-range::-webkit-slider-runnable-track {
+    height: 8px;
+    background: repeating-linear-gradient(90deg, var(--mh-control-line) 0 calc(100% / var(--mh-range-cells) - 2px), transparent calc(100% / var(--mh-range-cells) - 2px) calc(100% / var(--mh-range-cells)));
+  }
+  .mh-range::-moz-range-track { height: 8px; background: repeating-linear-gradient(90deg, var(--mh-control-line) 0 calc(100% / var(--mh-range-cells) - 2px), transparent calc(100% / var(--mh-range-cells) - 2px) calc(100% / var(--mh-range-cells))); }
+  .mh-range::-moz-range-progress { height: 8px; background: var(--mh-accent); }
+  .mh-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 22px;
+    margin-top: -7px;
+    background: var(--mh-accent);
+    clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+  }
+  .mh-range::-moz-range-thumb { width: 14px; height: 22px; border: 0; border-radius: 0; background: var(--mh-accent); }
+  .mh-range:focus-visible { outline: 2px solid var(--mh-accent); outline-offset: 4px; }
+
+  /* Stepper: a number field with − and + plates */
+  .mh-stepper { padding-right: 4px; gap: 4px; }
+  .mh-stepper input { text-align: right; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+  .mh-stepper input::-webkit-inner-spin-button,
+  .mh-stepper input::-webkit-outer-spin-button { appearance: none; margin: 0; }
+  .mh-stepper .mh-iconbtn { width: 32px; height: 32px; font-size: 10px; }
+
+  /* Select: a field with a pixel caret */
+  .mh-select { position: relative; padding-right: 36px; }
+  .mh-select select { cursor: pointer; padding-right: 0; }
+  .mh-select select option { background: var(--mh-bg); color: var(--mh-fg); }
+  .mh-select::after {
+    content: "";
+    position: absolute;
+    right: 14px;
+    top: calc(50% - 4px);
+    width: 9px;
+    height: 7px;
+    background: var(--mh-muted);
+    clip-path: polygon(0 0, 22% 0, 50% 55%, 78% 0, 100% 0, 50% 100%);
+    pointer-events: none;
+  }
+
+  /* Keyboard hint */
+  .mh-kbd {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border: 1px solid var(--mh-line);
+    border-bottom-width: 2px;
+    font: 700 var(--mh-text-2xs) / 1 var(--mh-font-mono);
+    color: var(--mh-muted);
+  }
+
+  @media (forced-colors: active) {
+    .mh-check input, .mh-toggle input { border: 1px solid CanvasText; }
+    .mh-check input:checked, .mh-toggle input:checked { background: Highlight; }
+  }
+}

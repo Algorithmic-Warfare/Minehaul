@@ -1,0 +1,131 @@
+/*
+ * Button — an asymmetric octagon whose keyline sweeps round on hover.
+ *
+ * Sweep and loading motion adapted from the EVE Frontier Builders Program UI
+ * kit (web/components/ui/button.module.css), MIT, Copyright (c) 2026 -
+ * present Fenris Creations. See ui/NOTICE.
+ *
+ *   <button class="mh-plate mh-button">Claim job</button>
+ *   <button class="mh-plate mh-button mh-button--secondary mh-button--sm">Details</button>
+ *   <button class="mh-plate mh-button" aria-busy="true">
+ *     <span class="mh-button__label">Claiming</span><span class="mh-button__cells"><i></i><i></i><i></i></span>
+ *   </button>
+ */
+@property --mh-btn-sweep { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@property --mh-btn-ang { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@property --mh-btn-key { syntax: "<length>"; inherits: false; initial-value: 1px; }
+
+@layer mh.components {
+  .mh-button {
+    --_big: var(--mh-cut-md);
+    --_small: var(--mh-cut-xs);
+    --mh-cut-tl: var(--_big);
+    --mh-cut-br: var(--_big);
+    --mh-cut-tr: var(--_small);
+    --mh-cut-bl: var(--_small);
+    --mh-plate-keyline-width: var(--mh-btn-key, 1px);
+    --mh-plate-keyline: conic-gradient(from -90deg, var(--_sweep-color) 0 var(--mh-btn-sweep, 0deg), var(--_edge) var(--mh-btn-sweep, 0deg) 360deg);
+    --mh-plate-fill: var(--_fill);
+
+    --_edge: var(--mh-accent);
+    --_sweep-color: var(--mh-fg);
+    --_fill: var(--mh-accent);
+    color: var(--mh-accent-fg);
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--mh-space-2);
+    min-height: 44px;
+    padding: 0 var(--mh-space-5);
+    border: 0;
+    font-family: var(--mh-font-mono);
+    font-size: var(--mh-text-sm);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    transition: --mh-btn-sweep var(--mh-slow) var(--mh-ease), --mh-btn-key .2s, color .2s, translate var(--mh-fast);
+  }
+
+  .mh-button--secondary {
+    --_edge: var(--mh-fg);
+    --_sweep-color: var(--mh-accent);
+    --_fill: var(--mh-bg);
+    color: var(--mh-fg);
+  }
+  .mh-button--brand {
+    --_edge: var(--mh-brand-fill);
+    --_sweep-color: var(--mh-signal);
+    --_fill: var(--mh-brand-fill);
+    color: var(--mh-brand-fg);
+  }
+  /* The keyline paints under the fill, so ghost fills with the ground, not transparent */
+  .mh-button--ghost {
+    --_edge: var(--mh-control-line);
+    --_sweep-color: var(--mh-accent);
+    --_fill: var(--mh-bg);
+    color: var(--mh-fg);
+  }
+
+  .mh-button--sm { --_big: var(--mh-cut-sm); --_small: calc(var(--mh-cut-xs) * .75); min-height: 32px; padding: 0 var(--mh-space-3); font-size: var(--mh-text-xs); }
+  .mh-button--lg { --_big: var(--mh-cut-lg); min-height: 52px; padding: 0 var(--mh-space-6); font-size: var(--mh-text-md); }
+
+  @media (hover: hover) {
+    .mh-button:hover { --mh-btn-sweep: 362deg; --mh-btn-key: 2px; }
+  }
+  .mh-button:focus-visible {
+    --mh-btn-sweep: 362deg;
+    --mh-btn-key: 2px;
+    --_edge: var(--mh-fg);
+    outline: none;
+    transition: --mh-btn-sweep .7s cubic-bezier(.45, 0, .2, 1), --mh-btn-key .2s, color .2s;
+  }
+  .mh-button:active { --mh-btn-sweep: 362deg; --mh-btn-key: 3px; translate: 0 1px; }
+  .mh-button:active::before { transition: none; }
+  .mh-button:not(.mh-button--secondary, .mh-button--ghost, .mh-button--brand):active { --_fill: var(--mh-accent-pressed); }
+
+  .mh-button[aria-busy="true"] {
+    cursor: progress;
+    position: relative;
+    --mh-plate-keyline: conic-gradient(from var(--mh-btn-ang, 0deg), var(--_sweep-color) 0 80deg, var(--_edge) 80deg 360deg);
+    --mh-btn-key: 2px;
+    animation: mh-radar 1.2s linear infinite;
+  }
+  .mh-button[aria-busy="true"] .mh-button__label { opacity: 0; }
+  .mh-button__cells {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    pointer-events: none;
+  }
+  .mh-button[aria-busy="true"] .mh-button__cells { display: flex; }
+  .mh-button__cells i { width: 6px; height: 6px; background: currentColor; animation: mh-cell 1s infinite; }
+  .mh-button__cells i:nth-child(2) { animation-delay: .16s; }
+  .mh-button__cells i:nth-child(3) { animation-delay: .32s; }
+
+  .mh-button:disabled,
+  .mh-button[aria-disabled="true"] {
+    cursor: not-allowed;
+    color: var(--mh-muted);
+    --mh-plate-keyline: var(--mh-line);
+    --mh-plate-fill: var(--mh-hatch-soft), var(--mh-bg);
+    --mh-btn-sweep: 0deg;
+    --mh-btn-key: 1px;
+    translate: none;
+  }
+
+  @keyframes mh-radar { to { --mh-btn-ang: 362deg; } }
+  @keyframes mh-cell { 0%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+  @media (forced-colors: active) {
+    .mh-button { border: 1px solid ButtonText; }
+    .mh-button:focus-visible { outline: 2px solid Highlight; outline-offset: 3px; }
+  }
+}

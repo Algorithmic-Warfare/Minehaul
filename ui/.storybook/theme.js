@@ -1,0 +1,32 @@
+import { create } from "storybook/theming/create";
+
+/* Storybook's own chrome in AWAR colours */
+export const awar = create({
+  base: "dark",
+  brandTitle: "Minehaul UI",
+  brandUrl: "https://github.com/Algorithmic-Warfare",
+  fontBase: '"JetBrains Mono", "SFMono-Regular", Consolas, monospace',
+  fontCode: '"JetBrains Mono", "SFMono-Regular", Consolas, monospace',
+  colorPrimary: "#ff8d3a",
+  colorSecondary: "#ff8d3a",
+  appBg: "#171716",
+  appContentBg: "#171716",
+  appPreviewBg: "#171716",
+  appBorderColor: "#3a3936",
+  appBorderRadius: 0,
+  textColor: "#f2eee6",
+  textInverseColor: "#171716",
+  textMutedColor: "#9a9893",
+  barTextColor: "#9a9893",
+  barSelectedColor: "#ff8d3a",
+  barHoverColor: "#ff8d3a",
+  barBg: "#242321",
+  buttonBg: "#242321",
+  buttonBorder: "#3a3936",
+  booleanBg: "#242321",
+  booleanSelectedBg: "#873a3c",
+  inputBg: "#171716",
+  inputBorder: "#3a3936",
+  inputTextColor: "#f2eee6",
+  inputBorderRadius: 0,
+});

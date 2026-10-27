@@ -1,0 +1,345 @@
+/*
+ * Feedback: toast, banner, notice, dialog, tooltip, transaction flow,
+ * spinner, busy bar, skeleton, empty state.
+ *
+ * Tones (data-tone) for toast, banner and notice:
+ *   info (default) | ok | warn | alert | accent | brand
+ * js/toast.js manages a live region of toasts; js/behaviors.js wires
+ * dialogs, dismiss buttons and tooltips declared in markup.
+ */
+@layer mh.components {
+  :is(.mh-toast, .mh-banner, .mh-notice) { --_tone: var(--mh-fg); }
+  :is(.mh-toast, .mh-banner, .mh-notice)[data-tone="ok"] { --_tone: var(--mh-ok); }
+  :is(.mh-toast, .mh-banner, .mh-notice)[data-tone="warn"] { --_tone: var(--mh-warn); }
+  :is(.mh-toast, .mh-banner, .mh-notice)[data-tone="alert"] { --_tone: var(--mh-alert); }
+  :is(.mh-toast, .mh-banner, .mh-notice)[data-tone="accent"] { --_tone: var(--mh-accent-text); }
+  :is(.mh-toast, .mh-banner, .mh-notice)[data-tone="brand"] { --_tone: var(--mh-brand-text); }
+
+  /* ---------- Toast ---------- */
+  .mh-toaster {
+    position: fixed;
+    right: max(var(--mh-space-4), env(safe-area-inset-right, 0px));
+    bottom: max(var(--mh-space-4), env(safe-area-inset-bottom, 0px));
+    z-index: 400;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: var(--mh-space-2);
+    width: min(380px, calc(100vw - 2 * var(--mh-space-4)));
+    pointer-events: none;
+  }
+  .mh-toaster--inline { position: static; width: auto; max-width: 380px; }
+
+  .mh-toast {
+    --mh-plate-fill: var(--mh-surface);
+    --mh-plate-keyline: color-mix(in srgb, var(--_tone) 45%, var(--mh-line));
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
+    padding: 12px 10px 14px 16px;
+    pointer-events: auto;
+    animation: mh-toast-in var(--mh-slow) var(--mh-ease);
+  }
+  .mh-toast::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--_tone);
+  }
+  .mh-toast[data-leaving] { animation: mh-toast-out 220ms ease-in forwards; }
+  .mh-toast__icon { color: var(--_tone); font-size: 14px; padding-top: 2px; }
+  .mh-toast__body { display: grid; gap: 2px; min-width: 0; }
+  .mh-toast__title { font: 700 var(--mh-text-sm) / 1.3 var(--mh-font-mono); }
+  .mh-toast__text { margin: 0; font-size: var(--mh-text-xs); color: var(--mh-muted); overflow-wrap: anywhere; }
+  .mh-toast__actions { display: flex; gap: var(--mh-space-3); margin-top: 6px; }
+  .mh-toast__close {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    background: none;
+    color: var(--mh-muted);
+    font-size: 10px;
+    cursor: pointer;
+  }
+  .mh-toast__close:hover { color: var(--mh-fg); }
+  .mh-toast__close:focus-visible { outline: 2px solid var(--mh-accent); }
+  /* Auto-dismiss timer: cells drain left to right, paused on hover and focus */
+  .mh-toast__timer {
+    position: absolute;
+    left: 16px;
+    right: 10px;
+    bottom: 5px;
+    height: 3px;
+    background: color-mix(in srgb, var(--_tone) 70%, transparent);
+    -webkit-mask: repeating-linear-gradient(90deg, #000 0 8px, transparent 8px 10px);
+    mask: repeating-linear-gradient(90deg, #000 0 8px, transparent 8px 10px);
+    transform-origin: left;
+    animation: mh-drain var(--mh-toast-duration, 6s) linear forwards;
+  }
+  .mh-toast:is(:hover, :focus-within) .mh-toast__timer { animation-play-state: paused; }
+
+  /* Text link-style action used in toasts and banners */
+  .mh-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--mh-accent-text);
+    font: 700 var(--mh-text-xs) / 1.2 var(--mh-font-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .mh-link:hover { color: var(--mh-fg); }
+
+  /* ---------- Banner: page-wide state ---------- */
+  .mh-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--mh-space-2) var(--mh-space-4);
+    padding: 10px max(var(--mh-space-4), env(safe-area-inset-right, 0px)) 10px max(var(--mh-space-4), env(safe-area-inset-left, 0px));
+    border-block: 1px solid color-mix(in srgb, var(--_tone) 50%, transparent);
+    background:
+      linear-gradient(90deg, color-mix(in srgb, var(--_tone) 16%, var(--mh-bg)), var(--mh-bg) 70%);
+    color: var(--mh-fg);
+    font-size: var(--mh-text-sm);
+  }
+  .mh-banner--hatch {
+    background:
+      repeating-linear-gradient(-45deg, color-mix(in srgb, var(--_tone) 22%, transparent) 0 1px, transparent 1px 7px),
+      color-mix(in srgb, var(--_tone) 8%, var(--mh-bg));
+  }
+  .mh-banner__icon { color: var(--_tone); font-size: 14px; }
+  .mh-banner__text { flex: 1 1 280px; min-width: 0; }
+  .mh-banner__text b { font-family: var(--mh-font-mono); }
+  .mh-banner .mh-toast__close { margin-left: auto; }
+
+  /* ---------- Notice: inline callout ---------- */
+  .mh-notice {
+    --mh-plate-fill: color-mix(in srgb, var(--_tone) 7%, var(--mh-bg));
+    --mh-plate-keyline: color-mix(in srgb, var(--_tone) 40%, var(--mh-line));
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px 12px;
+    padding: var(--mh-space-4) var(--mh-space-4) var(--mh-space-4) var(--mh-space-5);
+    font-size: var(--mh-text-sm);
+  }
+  .mh-notice::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--_tone); }
+  .mh-notice__icon { grid-row: span 2; color: var(--_tone); font-size: 14px; padding-top: 3px; }
+  .mh-notice__title { font: 700 var(--mh-text-sm) / 1.4 var(--mh-font-mono); color: var(--_tone); }
+  .mh-notice p { margin: 0; color: var(--mh-fg); }
+
+  /* ---------- Dialog (native <dialog>) ---------- */
+  .mh-dialog {
+    --mh-plate-fill: var(--mh-surface);
+    --mh-plate-keyline: var(--mh-trim);
+    width: min(520px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+    border: 0;
+    color: var(--mh-fg);
+    overflow: auto;
+  }
+  .mh-dialog[open] { animation: mh-dialog-in var(--mh-slow) var(--mh-ease); }
+  .mh-dialog::backdrop {
+    background:
+      repeating-linear-gradient(0deg, color-mix(in srgb, var(--mh-ink) 25%, transparent) 0 1px, transparent 1px 4px),
+      color-mix(in srgb, var(--mh-ink) 62%, transparent);
+    animation: mh-fade var(--mh-slow) var(--mh-ease);
+  }
+  .mh-dialog__head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--mh-space-3); padding: var(--mh-space-5) var(--mh-space-5) 0; }
+  .mh-dialog__title { margin: 0; font: 700 var(--mh-text-xl) / 1.15 var(--mh-font-display); }
+  .mh-dialog__body { display: grid; gap: var(--mh-space-4); padding: var(--mh-space-4) var(--mh-space-5); font-size: var(--mh-text-sm); }
+  .mh-dialog__body p { margin: 0; }
+  .mh-dialog__foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--mh-space-3);
+    padding: var(--mh-space-4) var(--mh-space-5) var(--mh-space-5);
+    border-top: 1px solid var(--mh-line);
+  }
+
+  /* ---------- Tooltip ---------- */
+  .mh-tip-anchor { position: relative; display: inline-flex; }
+  .mh-tip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    z-index: 350;
+    width: max-content;
+    max-width: 260px;
+    padding: 6px 9px;
+    background: var(--mh-fg);
+    color: var(--mh-bg);
+    font: var(--mh-text-xs) / 1.4 var(--mh-font-mono);
+    /* display: none while hidden, so a tooltip near an edge never widens the page */
+    display: none;
+    translate: -50% 0;
+    pointer-events: none;
+    transition: opacity var(--mh-fast), translate var(--mh-fast) var(--mh-ease), display var(--mh-fast) allow-discrete;
+  }
+  .mh-tip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: calc(50% - 4px);
+    width: 8px;
+    height: 4px;
+    background: var(--mh-fg);
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+  }
+  .mh-tip-anchor:is(:hover, :focus-within) .mh-tip { display: block; }
+  @starting-style {
+    .mh-tip-anchor:is(:hover, :focus-within) .mh-tip { opacity: 0; translate: -50% 3px; }
+  }
+  .mh-tip-anchor[data-tip-hidden] .mh-tip { display: none; }
+
+  /* ---------- Transaction flow ---------- */
+  .mh-txflow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--mh-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: tx;
+  }
+  .mh-txflow li {
+    --_c: var(--mh-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 700 var(--mh-text-xs) / 1 var(--mh-font-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--_c);
+  }
+  .mh-txflow li + li::before {
+    content: "";
+    width: 24px;
+    height: 2px;
+    margin-right: 2px;
+    background: repeating-linear-gradient(90deg, var(--_line, var(--mh-line)) 0 4px, transparent 4px 6px);
+  }
+  .mh-txflow__cell {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border: 1px solid currentColor;
+    font-size: 9px;
+  }
+  .mh-txflow li[data-state="done"] { --_c: var(--mh-ok); --_line: var(--mh-ok); }
+  .mh-txflow li[data-state="done"] .mh-txflow__cell { background: var(--mh-ok); color: var(--mh-bg); border-color: var(--mh-ok); }
+  .mh-txflow li[data-state="active"] { --_c: var(--mh-fg); --_line: var(--mh-ok); }
+  .mh-txflow li[data-state="active"] .mh-txflow__cell { border-color: var(--mh-accent); }
+  .mh-txflow li[data-state="failed"] { --_c: var(--mh-alert); }
+  .mh-txflow li[data-state="failed"] .mh-txflow__cell { background: var(--mh-alert); color: var(--mh-bg); border-color: var(--mh-alert); }
+
+  /* ---------- Spinner: 3 × 3 cells chasing ---------- */
+  .mh-spinner {
+    --_s: 4px;
+    display: inline-grid;
+    grid-template-columns: repeat(3, var(--_s));
+    gap: 1px;
+    flex: none;
+    vertical-align: middle;
+    color: var(--mh-accent);
+  }
+  .mh-spinner i { width: var(--_s); height: var(--_s); background: currentColor; opacity: .18; animation: mh-chase 1.1s steps(1) infinite; }
+  /* Clockwise around the ring; the centre stays dim */
+  .mh-spinner i:nth-child(1) { animation-delay: 0s; }
+  .mh-spinner i:nth-child(2) { animation-delay: .1375s; }
+  .mh-spinner i:nth-child(3) { animation-delay: .275s; }
+  .mh-spinner i:nth-child(6) { animation-delay: .4125s; }
+  .mh-spinner i:nth-child(9) { animation-delay: .55s; }
+  .mh-spinner i:nth-child(8) { animation-delay: .6875s; }
+  .mh-spinner i:nth-child(7) { animation-delay: .825s; }
+  .mh-spinner i:nth-child(4) { animation-delay: .9625s; }
+  .mh-spinner i:nth-child(5) { animation: none; opacity: .5; }
+  .mh-spinner--lg { --_s: 8px; gap: 2px; }
+
+  /* ---------- Busy bar: indeterminate progress ---------- */
+  .mh-busybar {
+    position: relative;
+    height: 6px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--mh-fg) 10%, transparent);
+    -webkit-mask: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 8px);
+    mask: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 8px);
+  }
+  .mh-busybar::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 30%;
+    background: var(--mh-accent);
+    animation: mh-busy 1.4s var(--mh-ease) infinite;
+  }
+
+  /* ---------- Skeleton ---------- */
+  .mh-skel {
+    position: relative;
+    display: block;
+    height: 12px;
+    overflow: hidden;
+    background: var(--mh-surface);
+  }
+  .mh-skel--title { height: 22px; width: 60%; }
+  .mh-skel--block { height: 120px; }
+  .mh-skel--cell { width: 18px; height: 18px; }
+  .mh-skel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--mh-fg) 9%, transparent) 0 1px, transparent 1px 6px);
+    -webkit-mask: linear-gradient(90deg, transparent 0 30%, #000 50%, transparent 70% 100%);
+    mask: linear-gradient(90deg, transparent 0 30%, #000 50%, transparent 70% 100%);
+    -webkit-mask-size: 300% 100%;
+    mask-size: 300% 100%;
+    animation: mh-shimmer 1.6s linear infinite;
+  }
+
+  /* ---------- Empty state ---------- */
+  .mh-empty {
+    display: grid;
+    justify-items: center;
+    gap: var(--mh-space-3);
+    padding: var(--mh-space-7) var(--mh-space-5);
+    border: 1px dashed var(--mh-trim);
+    background:
+      radial-gradient(circle, var(--mh-line) 1px, transparent 1.5px) 0 0 / 16px 16px,
+      var(--mh-bg);
+    text-align: center;
+  }
+  .mh-empty__icon { color: var(--mh-muted); font-size: 28px; }
+  .mh-empty__title { margin: 0; font: 700 var(--mh-text-lg) / 1.2 var(--mh-font-display); }
+  .mh-empty p { margin: 0; max-width: 46ch; font-size: var(--mh-text-sm); color: var(--mh-muted); }
+
+  /* Plates own clip-path for their shape, so entrances animate opacity and position only */
+  @keyframes mh-toast-in { from { opacity: 0; translate: 24px 0; } }
+  @keyframes mh-toast-out { to { opacity: 0; translate: 24px 0; } }
+  @keyframes mh-drain { from { scale: 1 1; } to { scale: 0 1; } }
+  @keyframes mh-dialog-in { from { opacity: 0; translate: 0 10px; } }
+  @keyframes mh-fade { from { opacity: 0; } }
+  @keyframes mh-chase { 0% { opacity: 1; } 25% { opacity: .55; } 50% { opacity: .18; } }
+  @keyframes mh-busy { from { translate: -100% 0; } to { translate: 340% 0; } }
+  @keyframes mh-shimmer { from { -webkit-mask-position: 100% 0; mask-position: 100% 0; } to { -webkit-mask-position: 0 0; mask-position: 0 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mh-toast, .mh-dialog[open], .mh-dialog::backdrop { animation: none; }
+    .mh-spinner i { animation: none; opacity: .6; }
+    .mh-busybar::after { animation: none; width: 100%; opacity: .5; }
+    .mh-skel::after { animation: none; }
+  }
+}

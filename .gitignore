@@ -26,3 +26,7 @@ Thumbs.db
 # Claude / MCP
 .claude/
 .playwright-mcp/
+
+# Minehaul UI
+ui/node_modules/
+ui/storybook-static/

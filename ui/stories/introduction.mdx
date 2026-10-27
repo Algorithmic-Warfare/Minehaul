@@ -1,0 +1,78 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Introduction" />
+
+# Minehaul UI
+
+Chamfered plates and countable stacks for Minehaul clients: hauling jobs,
+endpoints, escrow and their lifecycle on EVE Frontier. The library is plain
+CSS in cascade layers plus a few small ES modules. There is no build step and
+no framework dependency, and the same markup works from a server, vanilla JS
+or a component framework.
+
+Use the toolbar above the canvas to switch **Theme** (ink or paper),
+**Palette** (AWAR, Minehaul console, Frontier builders) and **Chamfer** (down
+to AWAR's square corners). Every story follows these settings.
+
+## How the sections fit together
+
+- **Foundations**: Palette, roles and data colours; type; space and shape; pixel icons; motion
+- **Actions**: Buttons and their sweep; icon buttons; segmented controls; links
+- **Inputs**: Fields, selects, steppers, checkboxes, radios, toggles, ranges, a filter bar
+- **Navigation**: Top bar, interlocking nav, tabs, breadcrumbs, menus, pager
+- **Display**: Plates, status chips, stat tiles, key–value lists, ID chips, countdowns, tables, network and SSU cards, the activity feed
+- **Data**: Stacks, the job card, lifecycle track, meters, payout split, route
+- **Feedback**: Toasts, banners, notices, dialogs, tooltips, transaction flow, loading and empty states
+- **Effects**: Scan line, brackets, coordinate grid, ticker, rule, dither, crosshair, glow, reveal, keyline draw
+- **Pages**: Job board, haul detail, network overview and my hauls, composed from the parts above
+
+## Principles
+
+- **Countable over smooth.** Quantities are drawn as cells you could count: stacks, meters, sparks and timers all share the same unit grammar.
+- **State in form, not only colour.** Ended, disputed and risky things are hatched. Selection inverts. Lamps light. Everything still reads in forced-colours mode and in greyscale.
+- **The protocol's words.** Status names follow `ActionStatus`, and events follow `events.move`. Routes are endpoint-only: Minehaul never claims a travel path.
+- **One accent, used sparingly.** Signal marks what is actionable or matches your lens. The brand colour marks what is yours.
+- **Motion with a job.** Sweeps confirm hover and focus, cells count down, and the scan line is the single ambient moment. All of it stops under reduced motion.
+
+## Use it
+
+```html
+<link rel="stylesheet" href="ui/minehaul-ui.css">
+<body class="mh-root">
+  <button class="mh-plate mh-button">Claim job</button>
+</body>
+```
+
+```js
+import { enhance } from "./ui/js/behaviors.js";      // data-mh-* behaviour
+import { createToaster } from "./ui/js/toast.js";    // notifications
+import { renderStacks } from "./ui/js/stacks.js";    // countable stacks
+import { renderJobCard } from "./ui/js/job.js";      // Transfer card
+import { icon, identicon } from "./ui/js/icons.js";  // pixel icons
+
+enhance(document);
+```
+
+## Rebrand
+
+Override the seven palette swatches on `:root`. Every role, state and chart
+colour is derived from them.
+
+```css
+:root {
+  --mh-ink: #171716;  --mh-ink-soft: #242321;
+  --mh-brand: #873a3c; --mh-brand-deep: #63282b;
+  --mh-signal: #ff8d3a;
+  --mh-paper: #f2eee6; --mh-paper-muted: #d6d0c5;
+  --mh-cut-scale: 1;   /* 0 = square corners */
+}
+```
+
+Themes are `data-mh-theme="ink" | "paper" | "auto"` on any element. All
+library rules sit in the `mh.tokens`, `mh.base` and `mh.components` layers, so
+any unlayered rule in your app overrides them.
+
+All data in these stories is fictional demo data. Plate geometry, the button
+sweep, the interlocking seam and the pixel-grid icon technique are adapted
+from the EVE Frontier Builders Program UI kit (MIT, © Fenris Creations). See
+`ui/NOTICE`.

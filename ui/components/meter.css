@@ -1,0 +1,58 @@
+/*
+ * Meter — elapsed time or a quantity as a ladder of square cells, so a
+ * window reads as countable hours rather than a smooth bar.
+ *
+ *   <div class="mh-meter" data-tone="window" style="--mh-meter-value: .4; --mh-meter-cells: 24"
+ *        role="meter" aria-valuemin="0" aria-valuemax="24" aria-valuenow="9.6" aria-label="Dispute window">
+ *     <div class="mh-meter__head"><span class="mh-label">Dispute window</span><span class="mh-num">14h 24m left</span></div>
+ *     <div class="mh-meter__bar"></div>
+ *     <div class="mh-meter__foot"><span>Delivered 09:12</span><span>Finalize from 09:12 +24h</span></div>
+ *   </div>
+ *
+ * data-tone: deadline (accent, default) | window (warn) | settled (ok) | alert
+ */
+@layer mh.components {
+  .mh-meter {
+    --mh-meter-value: 0;
+    --mh-meter-cells: 24;
+    --_fill: var(--mh-accent);
+    --_empty: color-mix(in srgb, var(--mh-fg) 14%, transparent);
+    --_gap: 3px;
+    --_w: calc(var(--mh-meter-value) * 100%);
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  @supports (width: round(down, 1.5px, 1px)) {
+    .mh-meter { --_w: calc(round(down, var(--mh-meter-value) * var(--mh-meter-cells), 1) / var(--mh-meter-cells) * 100%); }
+  }
+  /* --_text is the readable form of the fill: signal is too light for text on paper */
+  .mh-meter { --_text: var(--mh-accent-text); }
+  .mh-meter[data-tone="window"] { --_fill: var(--mh-state-window); --_text: var(--_fill); }
+  .mh-meter[data-tone="settled"] { --_fill: var(--mh-state-settled); --_text: var(--_fill); }
+  .mh-meter[data-tone="alert"] { --_fill: var(--mh-alert); --_text: var(--_fill); }
+
+  .mh-meter__head,
+  .mh-meter__foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 12px;
+    font-family: var(--mh-font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .mh-meter__head .mh-num { font-size: var(--mh-text-sm); font-weight: 700; color: var(--_text); }
+  .mh-meter__foot { font-size: var(--mh-text-2xs); color: var(--mh-muted); }
+
+  .mh-meter__bar {
+    height: 14px;
+    background: linear-gradient(to right, var(--_fill) 0 var(--_w), var(--_empty) var(--_w));
+    -webkit-mask: repeating-linear-gradient(to right, #000 0 calc(100% / var(--mh-meter-cells) - var(--_gap)), transparent calc(100% / var(--mh-meter-cells) - var(--_gap)) calc(100% / var(--mh-meter-cells)));
+    mask: repeating-linear-gradient(to right, #000 0 calc(100% / var(--mh-meter-cells) - var(--_gap)), transparent calc(100% / var(--mh-meter-cells) - var(--_gap)) calc(100% / var(--mh-meter-cells)));
+  }
+  .mh-meter--thin .mh-meter__bar { height: 8px; --_gap: 2px; }
+
+  @media (forced-colors: active) {
+    .mh-meter__bar { -webkit-mask: none; mask: none; border: 1px solid CanvasText; background: linear-gradient(to right, Highlight 0 var(--_w), Canvas var(--_w)); forced-color-adjust: none; }
+  }
+}

@@ -1,0 +1,133 @@
+/*
+ * Plate — a keyline and fill clipped to chamfered corners.
+ *
+ * Geometry adapted from the EVE Frontier Builders Program UI kit
+ * (web/components/ui/plate.module.css), MIT, Copyright (c) 2026 - present
+ * Fenris Creations. See ui/NOTICE.
+ *
+ * The clip removes anything outside the polygon (outlines, shadows,
+ * overflowing children), so components draw focus inside the plate as a
+ * thicker keyline. The keyline paints under the fill, so a translucent fill
+ * shows it through.
+ *
+ *   <div class="mh-plate">…</div>                 tr + bl at md (default)
+ *   <div class="mh-plate mh-plate--tl-br mh-plate--lg">…</div>
+ *   style="--mh-plate-fill: …; --mh-plate-keyline: …"
+ */
+@layer mh.components {
+  .mh-plate,
+  .mh-plate::before {
+    --_tl: max(var(--_k), calc(var(--mh-cut-tl, 0px) + var(--_k) * 0.41421));
+    --_tr: max(var(--_k), calc(var(--mh-cut-tr, 0px) + var(--_k) * 0.41421));
+    --_br: max(var(--_k), calc(var(--mh-cut-br, 0px) + var(--_k) * 0.41421));
+    --_bl: max(var(--_k), calc(var(--mh-cut-bl, 0px) + var(--_k) * 0.41421));
+    --_plate: polygon(
+      var(--_tl) var(--_k),
+      calc(100% - var(--_tr)) var(--_k),
+      calc(100% - var(--_k)) var(--_tr),
+      calc(100% - var(--_k)) calc(100% - var(--_br)),
+      calc(100% - var(--_br)) calc(100% - var(--_k)),
+      var(--_bl) calc(100% - var(--_k)),
+      var(--_k) calc(100% - var(--_bl)),
+      var(--_k) var(--_tl)
+    );
+  }
+
+  .mh-plate {
+    --_k: 0px;
+    /* Notched outline: the left edge cuts inward to sit under the previous
+       plate's bottom-right corner. --_B and --_S are the big and small cuts;
+       each inner vertex moves by n·(√2 − 1) so the keyline stays even. */
+    --_n: var(--mh-plate-keyline-width, var(--mh-keyline));
+    --_notch-outer: polygon(
+      calc(var(--_B, var(--mh-cut-md)) - var(--_S, var(--mh-cut-xs))) 0,
+      calc(100% - var(--_S, var(--mh-cut-xs))) 0,
+      100% var(--_S, var(--mh-cut-xs)),
+      100% calc(100% - var(--_B, var(--mh-cut-md))),
+      calc(100% - var(--_B, var(--mh-cut-md))) 100%,
+      0 100%,
+      var(--_B, var(--mh-cut-md)) calc(100% - var(--_B, var(--mh-cut-md))),
+      var(--_B, var(--mh-cut-md)) var(--_S, var(--mh-cut-xs))
+    );
+    --_notch-inner: polygon(
+      calc(var(--_B, var(--mh-cut-md)) - var(--_S, var(--mh-cut-xs)) + var(--_n) * 2.41421) var(--_n),
+      calc(100% - var(--_S, var(--mh-cut-xs)) - var(--_n) * 0.41421) var(--_n),
+      calc(100% - var(--_n)) calc(var(--_S, var(--mh-cut-xs)) + var(--_n) * 0.41421),
+      calc(100% - var(--_n)) calc(100% - var(--_B, var(--mh-cut-md)) - var(--_n) * 0.41421),
+      calc(100% - var(--_B, var(--mh-cut-md)) - var(--_n) * 0.41421) calc(100% - var(--_n)),
+      calc(var(--_n) * 2.41421) calc(100% - var(--_n)),
+      calc(var(--_B, var(--mh-cut-md)) + var(--_n)) calc(100% - var(--_B, var(--mh-cut-md)) + var(--_n) * 0.41421),
+      calc(var(--_B, var(--mh-cut-md)) + var(--_n)) calc(var(--_S, var(--mh-cut-xs)) - var(--_n) * 0.41421)
+    );
+    position: relative;
+    isolation: isolate;
+    clip-path: var(--mh-plate-clip, var(--_plate));
+    background: var(--mh-plate-keyline, var(--mh-line));
+  }
+
+  .mh-plate::before {
+    --_k: var(--mh-plate-keyline-width, var(--mh-keyline));
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    clip-path: var(--mh-plate-clip-inner, var(--_plate));
+    background: var(--mh-plate-fill, var(--mh-surface));
+    transition: background var(--mh-fast), clip-path var(--mh-fast);
+  }
+
+  /* Plate variables don't inherit: a nested plate starts clean */
+  :where(.mh-plate) {
+    --mh-cut-tl: initial;
+    --mh-cut-tr: initial;
+    --mh-cut-br: initial;
+    --mh-cut-bl: initial;
+    --mh-plate-clip: initial;
+    --mh-plate-clip-inner: initial;
+    --mh-plate-keyline: initial;
+    --mh-plate-keyline-width: initial;
+    --mh-plate-fill: initial;
+  }
+
+  /* Corners, zero specificity so a component's own cuts win. Default tr-bl. */
+  :where(.mh-plate) { --_cut: var(--mh-cut-md); --mh-cut-tr: var(--_cut); --mh-cut-bl: var(--_cut); }
+  :where(.mh-plate--tl, .mh-plate--tr, .mh-plate--br, .mh-plate--bl, .mh-plate--tl-br, .mh-plate--all) { --mh-cut-tr: initial; --mh-cut-bl: initial; }
+  :where(.mh-plate--tl, .mh-plate--tl-br, .mh-plate--all) { --mh-cut-tl: var(--_cut); }
+  :where(.mh-plate--tr, .mh-plate--all) { --mh-cut-tr: var(--_cut); }
+  :where(.mh-plate--br, .mh-plate--tl-br, .mh-plate--all) { --mh-cut-br: var(--_cut); }
+  :where(.mh-plate--bl, .mh-plate--all) { --mh-cut-bl: var(--_cut); }
+
+  /* Cut depth */
+  :where(.mh-plate--xs) { --_cut: var(--mh-cut-xs); }
+  :where(.mh-plate--sm) { --_cut: var(--mh-cut-sm); }
+  :where(.mh-plate--lg) { --_cut: var(--mh-cut-lg); }
+
+  /* Octagon: big cuts top-left and bottom-right, small on the other two */
+  .mh-plate--octagon {
+    --mh-cut-tl: var(--_B, var(--mh-cut-md));
+    --mh-cut-br: var(--_B, var(--mh-cut-md));
+    --mh-cut-tr: var(--_S, var(--mh-cut-xs));
+    --mh-cut-bl: var(--_S, var(--mh-cut-xs));
+  }
+  /* Notched: follows an octagon in a row (nav items, interlocked fields) */
+  .mh-plate--notch {
+    --mh-plate-clip: var(--_notch-outer);
+    --mh-plate-clip-inner: var(--_notch-inner);
+  }
+
+  /* Fills */
+  :where(.mh-plate--ground) { --mh-plate-fill: var(--mh-bg); }
+  :where(.mh-plate--raised) { --mh-plate-fill: var(--mh-surface-2); }
+  :where(.mh-plate--accent) { --mh-plate-fill: var(--mh-accent); --mh-plate-keyline: var(--mh-accent); color: var(--mh-accent-fg); }
+  :where(.mh-plate--brand) { --mh-plate-fill: var(--mh-brand-fill); --mh-plate-keyline: var(--mh-brand-fill); color: var(--mh-brand-fg); }
+  :where(.mh-plate--hatch) { --mh-plate-fill: var(--mh-hatch-soft), var(--mh-bg); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mh-plate::before { transition: none; }
+  }
+
+  @media (forced-colors: active) {
+    .mh-plate { clip-path: none; border: 1px solid CanvasText; }
+    .mh-plate::before { display: none; }
+  }
+}

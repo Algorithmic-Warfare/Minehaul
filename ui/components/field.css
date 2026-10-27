@@ -1,0 +1,58 @@
+/*
+ * Field — a single-line input in an octagon frame.
+ *
+ *   <label class="mh-plate mh-field">
+ *     <span class="mh-field__prefix">CR</span>
+ *     <input placeholder="Minimum reward" inputmode="numeric">
+ *   </label>
+ */
+@layer mh.components {
+  .mh-field {
+    --mh-cut-tl: var(--mh-cut-md);
+    --mh-cut-br: var(--mh-cut-md);
+    --mh-cut-tr: var(--mh-cut-xs);
+    --mh-cut-bl: var(--mh-cut-xs);
+    --mh-plate-keyline: var(--mh-control-line);
+    --mh-plate-fill: var(--mh-bg);
+    display: flex;
+    align-items: center;
+    gap: var(--mh-space-2);
+    min-height: 44px;
+    min-width: 0;
+    padding: 0 var(--mh-space-4);
+    color: var(--mh-fg);
+    cursor: text;
+  }
+  .mh-field:focus-within {
+    --mh-plate-keyline: var(--mh-fg);
+    --mh-plate-keyline-width: 2px;
+    --mh-plate-fill: var(--mh-surface);
+  }
+  .mh-field:has(input:disabled) {
+    cursor: not-allowed;
+    color: var(--mh-muted);
+    --mh-plate-keyline: var(--mh-line);
+    --mh-plate-fill: var(--mh-hatch-soft), var(--mh-bg);
+  }
+  .mh-field input,
+  .mh-field select {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 2px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 16px; /* iOS zooms when a focused input is smaller */
+    outline: none;
+    appearance: none;
+  }
+  .mh-field input::placeholder { color: var(--mh-muted); opacity: 1; }
+  .mh-field__prefix,
+  .mh-field__suffix {
+    font-size: var(--mh-text-xs);
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--mh-muted);
+  }
+}
