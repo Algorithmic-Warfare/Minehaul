@@ -1,8 +1,8 @@
 # Minehaul UI
 
 Chamfered plates and countable stacks for Minehaul clients. The library is plain
-CSS in cascade layers plus two small ES modules. There is no build step and no
-framework dependency. The default palette is AWAR's
+CSS in cascade layers plus five small ES modules in `js/`. There is no build
+step and no framework dependency. The default palette is AWAR's
 ([awar.dev DESIGN.md](https://github.com/Algorithmic-Warfare/awar.dev/blob/main/DESIGN.md)).
 
 Status: v0 alpha. Class names and the stacks API may still change.

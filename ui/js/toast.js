@@ -44,8 +44,11 @@ export function createToaster({ region, label = "Notifications" } = {}) {
     let remaining = duration;
     let startedAt = 0;
     let timer = 0;
+    // Hover and focus pause independently; the timer resumes only when neither holds
+    let hovered = false;
+    let focused = false;
     const start = () => {
-      if (duration <= 0) return;
+      if (duration <= 0 || timer || hovered || focused) return;
       startedAt = performance.now();
       timer = setTimeout(dismiss, remaining);
     };
@@ -64,10 +67,14 @@ export function createToaster({ region, label = "Notifications" } = {}) {
       setTimeout(() => el.remove(), reduce ? 0 : 220);
     }
 
-    el.addEventListener("mouseenter", pause);
-    el.addEventListener("mouseleave", start);
-    el.addEventListener("focusin", pause);
-    el.addEventListener("focusout", (e) => { if (!el.contains(e.relatedTarget)) start(); });
+    el.addEventListener("mouseenter", () => { hovered = true; pause(); });
+    el.addEventListener("mouseleave", () => { hovered = false; start(); });
+    el.addEventListener("focusin", () => { focused = true; pause(); });
+    el.addEventListener("focusout", (e) => {
+      if (el.contains(e.relatedTarget)) return;
+      focused = false;
+      start();
+    });
     el.querySelector(".mh-toast__close").addEventListener("click", dismiss);
     el.querySelector("[data-toast-action]")?.addEventListener("click", () => {
       action.onClick?.();

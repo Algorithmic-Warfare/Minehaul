@@ -8,8 +8,10 @@ The job board supports search, network filters, sorting, job details, demo ident
 
 Product authority: the repository README and ADRs 0004 and 0005. Transfer is the only supported action; delivery and settlement are separate states. The mockup does not imply production integration.
 
+The mockup predates `../ui` and does not use `@minehaul/ui`. It defines its own colour tokens in `dist/styles.css` and loads Barlow, Barlow Condensed and IBM Plex Mono from Google Fonts at runtime, falling back to Arial and the system monospace offline.
+
 ## Verification
 
 `node --check dist/app.js` checks JavaScript syntax. `scripts/verify.cjs` runs browser scenarios with Playwright; use an installed `playwright` package or set `PLAYWRIGHT_MODULE` to its absolute package path. Optionally set `CHROME_EXECUTABLE` to an existing Chromium binary. Screenshots go to `/tmp/minehaul-qa` unless `ARTIFACT_DIR` is set. The test server shuts down after the run.
 
-Verified in Chromium: search/filter/sort, URL restoration, modal Escape and focus restoration, the full demo lifecycle with exact balance assertions, reload persistence, network navigation, reset/undo, empty recovery, storage unavailable, and responsive overflow at 320/390/768px. Desktop screenshot checked at 1440px. JavaScript syntax, strict premium UI audit, and DESIGN.md lint passed. This does not constitute a full assistive-technology or cross-browser audit.
+Verified in Chromium: search/filter/sort, URL restoration, modal Escape and focus restoration, the full demo lifecycle with exact balance assertions, reload persistence, network navigation, reset/undo, empty recovery, storage unavailable, and responsive overflow at 320/390/768px. Desktop screenshot checked at 1440px. JavaScript syntax and DESIGN.md lint passed. This does not constitute a full assistive-technology or cross-browser audit.

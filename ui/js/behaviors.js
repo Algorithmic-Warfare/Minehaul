@@ -116,6 +116,8 @@ export function enhance(root = document) {
 }
 
 async function copyText(button) {
+  // A second click before the reset would save the check icon as the original
+  if (button.hasAttribute("data-copied")) return;
   const text = button.dataset.mhCopy;
   try {
     await navigator.clipboard.writeText(text);
@@ -183,7 +185,8 @@ const pad = (n) => String(n).padStart(2, "0");
 /** Renders "05h 12m 44s" into a [data-mh-countdown] element and keeps it current. */
 export function startCountdown(el) {
   const raw = el.dataset.mhCountdown;
-  const end = /^\d+$/.test(raw) ? Number(raw) : Date.parse(raw);
+  // An unparseable date counts as ended rather than rendering NaN
+  const end = /^\d+$/.test(raw) ? Number(raw) : Date.parse(raw) || 0;
   const now = () => (el.dataset.now ? Number(el.dataset.now) + (Date.now() - started) : Date.now());
   const started = Date.now();
   const warn = Number(el.dataset.warnUnder ?? 0);
