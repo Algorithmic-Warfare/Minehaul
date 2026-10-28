@@ -12,6 +12,8 @@ code looks the way it does. For *what* it does, read the module doc comments.
 | [0004](0004-transfer-settlement-and-proofs.md) | Transfer settlement and proof boundaries | Accepted; routing terms superseded by 0005 |
 | [0005](0005-endpoint-only-transport.md) | Endpoint-only transport | Accepted |
 | [0006](0006-agreement-primitive.md) | Agreement as the protocol primitive | Proposed |
+| [0007](0007-network-authority.md) | Networks are Minehaul objects with a pluggable authority | Proposed |
+| [0008](0008-distribution-intents.md) | Distribution intents | Proposed; exploratory, blocked on the delivery adapter contract |
 
 ## Writing a new ADR
 
