@@ -83,7 +83,8 @@ clean checkout with one command.
 **Goal:** stabilize the endpoint delivery boundary without adding route or gate
 semantics to Minehaul.
 
-- [ ] Write an ADR for the delivery receipt and adapter versioning model.
+- [ ] Write an ADR for the delivery receipt and adapter versioning model. Proposed as
+  [ADR 0009](docs/adr/0009-delivery-adapter-contract.md).
 - [ ] Specify the facts a delivery adapter must verify: action, network, registry,
   destination, hauler, complete manifest hash, and delivery time.
 - [ ] Decide whether an external receipt/reference belongs on-chain, in an event,
