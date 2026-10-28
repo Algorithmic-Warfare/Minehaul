@@ -136,6 +136,8 @@ those objects and production governance authorization.
 - The added network/job/auth fields and function signatures change the prototype's
   public interface and object layout. Do not assume compatibility with existing published objects.
 
+For the product position the ADRs build towards, see the [vision](docs/vision.md).
+
 See [architecture decisions](docs/adr/README.md), especially
 [endpoint-only transport](docs/adr/0005-endpoint-only-transport.md) and
 [Transfer settlement and proof boundaries](docs/adr/0004-transfer-settlement-and-proofs.md).

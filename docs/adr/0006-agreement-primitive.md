@@ -10,6 +10,9 @@
   its fixed loss payout policy
 - **Addresses:** #13 (dispute liveness), and the resolver half of #16 (who holds a
   global kill switch)
+- **See also:** [ADR 0007](0007-network-authority.md) (proposes making party
+  authority pluggable too, amending decision 8) and
+  [ADR 0008](0008-distribution-intents.md) (proposes an answer to open question 5)
 
 ## Context
 
@@ -380,6 +383,10 @@ membership. That is a product choice for Minehaul, not a property of agreements.
 What changes is that the **agreement core never imports armature**, and armature
 resolution becomes one resolver module among several.
 
+[ADR 0007](0007-network-authority.md) proposes going further: networks become
+Minehaul objects and armature becomes one pluggable authority, so `minehaul_core`
+stops importing armature as well.
+
 Today:
 
 ```mermaid
@@ -601,7 +608,8 @@ listing policy.
    appeal a ruling to a second resolver?
 5. **Partial performance and more than two parties.** The haul manifest is
    all-or-nothing. Do other instances need partial attestation or several
-   acceptors?
+   acceptors? [ADR 0008](0008-distribution-intents.md) proposes keeping agreements
+   two-party and carving partial fills out of one offer.
 6. **Is a challenge window always required?** Every haul has one. Some agreements
    may want discharge on attestation.
 7. **OU agreements and armature.** These need armature to drive the agreement
