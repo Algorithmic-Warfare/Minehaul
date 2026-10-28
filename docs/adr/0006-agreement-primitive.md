@@ -10,9 +10,9 @@
   its fixed loss payout policy
 - **Addresses:** #13 (dispute liveness), and the resolver half of #16 (who holds a
   global kill switch)
-- **See also:** [ADR 0007](0007-network-authority.md) (proposes making party
-  authority pluggable too, amending decision 8) and
-  [ADR 0008](0008-distribution-intents.md) (proposes an answer to open question 5)
+- **See also:** [ADR 0007](0007-network-authority.md) (party authority, which
+  decision 8 defers to) and [ADR 0008](0008-distribution-intents.md) (exploratory;
+  one possible answer to open question 5)
 
 ## Context
 
@@ -367,25 +367,28 @@ public fun apply_default<T: store>(a: &mut Agreement<T>, clock: &Clock, ctx: &mu
 The haul domain keeps its policy and enforces it before calling the generic
 transition:
 
-- **Who may list and cancel.** The network's governance, as today.
-- **Who may claim.** Network membership, auxiliary haulers or the open marketplace.
+- **Who may list and cancel.** The network's listing authority
+  ([ADR 0007](0007-network-authority.md)): an approved armature proposal on an
+  armature-governed network, the owner on an owner-governed one.
+- **Who may claim.** The network's claim policy (ADR 0007): members, auxiliary
+  haulers or the open marketplace, in any combination.
 - **The collateral minimum.** Rounded up, as today.
-- **Who may dispute.** The parties; whether governance members may also dispute
-  becomes a deliberate domain choice instead of a hard-coded rule.
+- **Who may dispute.** The parties, plus whoever the network's dispute policy
+  (ADR 0007) adds. Governance members are no longer added by a hard-coded rule.
 - **The delivery handoff.** The non-droppable `DeliveryRequest` and
   `VerifiedDelivery` from ADR 0004 are unchanged. The haul attestor module consumes
   `VerifiedDelivery` and then calls `attest` with its own permit.
 
-### 8. Party authority stays with the domain; only the arbiter becomes pluggable
+### 8. Party authority stays out of the agreement core
 
-Armature remains Minehaul's party authority: networks, listing approval and
-membership. That is a product choice for Minehaul, not a property of agreements.
-What changes is that the **agreement core never imports armature**, and armature
-resolution becomes one resolver module among several.
+Who governs a network (listing approval, membership, adapter trust) is a domain
+concern, not a property of agreements. The **agreement core never imports
+armature**, and armature resolution becomes one resolver module among several.
 
-[ADR 0007](0007-network-authority.md) proposes going further: networks become
-Minehaul objects and armature becomes one pluggable authority, so `minehaul_core`
-stops importing armature as well.
+How the haul domain decides party authority is
+[ADR 0007](0007-network-authority.md): networks become Minehaul objects, armature
+becomes one network authority among others, and `minehaul_core` stops importing
+armature too.
 
 Today:
 
@@ -398,28 +401,29 @@ flowchart LR
     W1 --> WC1[("world-contracts")]
 ```
 
-Proposed, after phase 2:
+Proposed, after phase 2 and ADR 0007:
 
 ```mermaid
 flowchart LR
-    A2["minehaul_armature<br>(handlers, ArmatureResolver)"] --> C2["minehaul_core<br>(haul terms, delivery attestor)"]
+    A2["minehaul_armature<br>(handlers, ArmatureAuthority, ArmatureResolver)"] --> C2["minehaul_core<br>(networks, haul terms, delivery attestor)"]
     A2 --> AGR["agreement<br>(lifecycle, holdings, rulings)"]
+    A2 --> X2[("armature")]
     W2["minehaul_world_v0"] --> C2
     W2 --> WC2[("world-contracts")]
     C2 --> AGR
-    C2 --> X2[("armature")]
     OR["other resolvers<br>(multisig, single arbiter)"] --> AGR
     OU["future: OU agreements<br>in armature"] -.-> AGR
     AGR --> M2[("multicoin")]
 ```
 
-The edge that must never exist is `agreement → armature`.
+The edges that must never exist are `agreement → armature` and, once ADR 0007 is
+accepted, `minehaul_core → armature`.
 
 ### 9. How a haul maps onto an agreement
 
 | Haul (today) | Agreement | Notes |
 |---|---|---|
-| Lister | Offeror party | The approved payload fixes the address, as today |
+| Lister | Offeror party | Fixed by the listing the network's authority approved: the armature payload, or the owner's call (ADR 0007) |
 | Hauler | Acceptor party | Bound at claim |
 | Treasury | Eligible recipient | Not a party; it can only receive what terms or rulings give it |
 | Reward | Consideration (lister's) | |
@@ -496,8 +500,8 @@ Concretely:
 - **`resolve_dispute`:** its `award_to_hauler` and `slash_bps` arguments are
   replaced by `rule` with a `Ruling`. The armature handler becomes
   `ArmatureResolver`.
-- **`dispute_action`:** its built-in governance-member check moves into explicit
-  domain policy.
+- **`dispute_action`:** its built-in governance-member check moves into the
+  network's dispute policy (ADR 0007 decision 4).
 - **Other resolver kinds:** a single named arbiter and a k-of-n multisig, so the
   seam is tested by more than one implementation.
 
@@ -608,7 +612,7 @@ listing policy.
    appeal a ruling to a second resolver?
 5. **Partial performance and more than two parties.** The haul manifest is
    all-or-nothing. Do other instances need partial attestation or several
-   acceptors? [ADR 0008](0008-distribution-intents.md) proposes keeping agreements
+   acceptors? [ADR 0008](0008-distribution-intents.md) explores keeping agreements
    two-party and carving partial fills out of one offer.
 6. **Is a challenge window always required?** Every haul has one. Some agreements
    may want discharge on attestation.

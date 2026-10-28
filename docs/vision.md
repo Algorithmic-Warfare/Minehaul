@@ -33,12 +33,15 @@ disputed.
 
 The protocol fixes the end state and the payment. The hauler decides how to
 reach it: which ships, which path, and where the goods come from, including
-buying them on a market such as Trinary Exchange in the same transaction.
+buying them on a market such as Trinary Exchange. Buying and delivering in one
+transaction only works for goods already at the target depot, since items move
+between depots through the game, and only if the market and Minehaul can share
+that SSU's single extension slot.
 
 This extends [ADR 0005](adr/0005-endpoint-only-transport.md). That ADR stopped
-the protocol caring *how goods travel*. Outcome intents
-([ADR 0008](adr/0008-distribution-intents.md)) stop it caring *where the goods
-come from*. Markets become a tool haulers use, not something Minehaul models.
+the protocol caring *how goods travel*. Distribution intents
+([ADR 0008](adr/0008-distribution-intents.md), exploratory) would stop it caring
+*where the goods come from*. Markets become a tool haulers use, not something Minehaul models.
 
 ## Depots and networks
 
@@ -59,14 +62,14 @@ haul, which delivery adapters are trusted, and how disputes are judged. Grouping
 depots is a logistics concept in its own right, because many statements are
 about a set ("keep K stocked anywhere in this set"). Minehaul therefore owns the
 network. Who governs it is pluggable
-([ADR 0007](adr/0007-network-authority.md)): an armature DAO or organisational
-unit is one authority, a single owner or a multisig are others.
+([ADR 0007](adr/0007-network-authority.md)): an armature DAO is one authority
+(and later an organisational unit), a single owner holding a cap is another.
 
 ## What a logistics statement says
 
 Every statement combines four things:
 
-- **What:** an item (multicoin collection and asset) and a quantity.
+- **What:** an item (a world item type) and a quantity.
 - **Where:** one depot, or a set of depots.
 - **When:** by a deadline, over a recurring period, or always.
 - **Whose goods:** the lister's own stock, or any source the hauler chooses.
@@ -101,11 +104,14 @@ Out of scope:
 
 | Statement | State |
 |---|---|
-| Move (Transfer) | Implemented: endpoint-only Transfer ([ADR 0004](adr/0004-transfer-settlement-and-proofs.md), [ADR 0005](adr/0005-endpoint-only-transport.md)) |
-| Deliver, Gather | Proposed: [ADR 0008](adr/0008-distribution-intents.md) |
-| Stay stocked | Proposed: standing intents in [ADR 0008](adr/0008-distribution-intents.md) |
-| Clear out, Stay in a range, Steady supply, Spread, Ordered | Not designed yet |
+| Move (Transfer) | Implemented: endpoint-only Transfer ([ADR 0004](adr/0004-transfer-settlement-and-proofs.md), [ADR 0005](adr/0005-endpoint-only-transport.md)). Delivery is certified only by a localnet test adapter; the production adapter is pending. |
+| Deliver | Exploratory: [ADR 0008](adr/0008-distribution-intents.md), blocked on the delivery adapter contract |
+| Stay stocked, Stay in a range | Blocked: world-contracts exposes no stock level on chain (see ADR 0008) |
+| Gather | Not designed: it moves the lister's own goods from several sources, so it is a Transfer variant, not an intent |
+| Clear out, Steady supply, Spread, Ordered | Not designed yet |
 
-Every statement is an agreement in the sense of ADR 0006: an obligation that
-outlives the transaction that creates it, with stakes escrowed on chain,
+Every job a hauler takes is an agreement in the sense of ADR 0006: an obligation
+that outlives the transaction that creates it, with stakes escrowed on chain,
 performance attested, and breaches judged by a resolver both sides accepted.
+Intents and standing statements are offers and policies that create such
+agreements; they are not agreements themselves.
