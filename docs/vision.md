@@ -35,8 +35,9 @@ The protocol fixes the end state and the payment. The hauler decides how to
 reach it: which ships, which path, and where the goods come from, including
 buying them on a market such as Trinary Exchange. Buying and delivering in one
 transaction only works for goods already at the target depot, since items move
-between depots through the game, and only if the market and Minehaul can share
-that SSU's single extension slot.
+between depots through the game. Under [ADR 0009](adr/0009-delivery-adapter-contract.md)
+that means buying the target depot's warehouse receipts, which a market can
+trade without any access to the depot itself.
 
 This extends [ADR 0005](adr/0005-endpoint-only-transport.md). That ADR stopped
 the protocol caring *how goods travel*. Distribution intents
@@ -56,6 +57,17 @@ in how they are used:
 Temperature is a description of observed activity, so indexers derive it from
 events. It informs haulers' choices and the UI. No protocol rule depends on it
 yet, so it is not stored on chain.
+
+A depot is **dedicated to logistics**. It does not double as a market: its
+extension is warehouse receipts, frozen, and markets trade its receipts rather
+than touching the SSU. A market that wants goods moved uses Minehaul like anyone
+else, as an endpoint: a depot plus the market account the goods' claim is
+delivered to.
+
+A depot can be **destroyed** like any other structure, and its goods go with it.
+The network records the loss, voids the jobs that depended on that depot without
+punishing anyone, and carries on with the depots it has left
+([ADR 0009](adr/0009-delivery-adapter-contract.md) decision 7).
 
 A **network** is a set of depots with shared policy: who may list, who may
 haul, which delivery adapters are trusted, and how disputes are judged. Grouping
