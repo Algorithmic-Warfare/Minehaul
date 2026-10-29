@@ -2,6 +2,7 @@
 
 - **Status:** Proposed
 - **Recorded:** 2026-10-28
+- **Revised:** 2026-10-28 (dedicated depots, markets as endpoints, depot loss)
 - **Resolves:** ADR 0004's "remaining integration decision" (what a production
   adapter must verify before `certify_delivery`)
 - **Builds on:** [ADR 0004](0004-transfer-settlement-and-proofs.md) (the
@@ -53,6 +54,31 @@ At world-contracts `8eb197e` (tag `v0.0.18`):
 Because both functions are public, another package can compose with them. Minehaul
 does not need to be the SSU's extension.
 
+### The extension slot
+
+An SSU has one extension slot. Only the extension it names can move items into or
+out of the SSU's open inventory, which is where receipt-backed items sit. The
+SSU's owner can swap the extension at any time (`authorize_extension`), and a new
+extension could withdraw those items and leave the receipts unbacked.
+`freeze_extension_config` locks the slot permanently. `is_extension_frozen` is
+public, but storage units, unlike gates and turrets, have no public getter for
+*which* extension is installed.
+
+### Depots can be destroyed
+
+`storage_unit::unanchor` and `unanchor_orphan`, sponsored by the game server,
+delete the SSU object and every inventory in it, frozen or not. They emit
+`StatusChangedEvent` (`UNANCHORED`) and an `ItemDestroyedEvent` per item. A
+Move transaction cannot prove this happened:
+
+- **A deleted object cannot be an input**, so nothing can present the lost SSU.
+- **The object registry does not forget.** `object_registry::object_exists` stays
+  true after deletion; the registry's reclaim path is commented out.
+- **Killmails do not name the structure.** A `Killmail` records the victim
+  Character, not the SSU, and has no public getters.
+
+A transaction can only prove the opposite: an SSU it presents still exists.
+
 ### Shared types
 
 Warehouse receipts tracks multicoin `main` (`2772c26`, the revision Trinary
@@ -77,8 +103,11 @@ transaction:
 - **The manifest is matched exactly.** For every manifest line there is delivered
   value of the same `asset_id` equal to the line's quantity, and nothing else is
   delivered.
-- **The recipient is fixed.** The receipts go to the lister named in the request,
-  never to an address the transaction chooses.
+- **The recipient is fixed.** The receipts go to the recipient named in the
+  request, never to an address the transaction chooses.
+- **Both depots still exist.** The destination SSU is presented. In exchange mode
+  the source SSU is presented too, so the hauler is never paid in receipts of a
+  depot that is gone (decision 7).
 
 Then it calls `certify_delivery`. Every check is on chain; the adapter holds no
 keys and needs no operator.
@@ -96,8 +125,8 @@ sequenceDiagram
     WR-->>H: B receipts
     H->>CORE: withdraw_cargo_for_delivery
     CORE-->>H: source receipts (exchange mode) and DeliveryRequest
-    H->>AD: deliver(request, B receipts, B VaultConfig)
-    AD->>AD: check collection, manifest, recipient
+    H->>AD: deliver(request, B receipts, B VaultConfig, SSUs A and B)
+    AD->>AD: check collection, manifest, recipient, depots
     AD-->>L: B receipts
     AD->>CORE: certify_delivery, then complete_action
 ```
@@ -123,20 +152,23 @@ The delivery check is identical in both modes.
 
 ### 3. Core changes
 
-- **`DeliveryRequest` gains `lister: address`**, so the adapter can send receipts to
-  the fixed recipient.
+- **`DeliveryRequest` gains `source: ID` and `recipient: address`**, so the adapter
+  can require the source depot and send receipts to the fixed recipient. Until
+  decision 6 is designed, the recipient is the lister.
 - **`DeliveryRequest` exposes its manifest lines** (`delivery_manifest`), so the
   adapter checks lines directly instead of recomputing a hash in another package.
   The hash stays for `complete_action`'s check.
 - **The listing terms gain the custody mode.** Only `Exchange` is accepted until
   courier mode is enabled.
+- **Registered depots gain a lost state**, and jobs gain a void transition
+  (decision 7).
 - **Nothing in core learns about warehouse receipts or world-contracts.** Core stays
   world-agnostic (ADR 0001); all receipt knowledge lives in the adapter.
 
 ### 4. Replay, uniqueness, freshness and retries
 
 - **Replay and uniqueness:** the `DeliveryRequest` is a single-use obligation, and the
-  delivered receipts are objects transferred to the lister. Neither can be used
+  delivered receipts are objects transferred to the recipient. Neither can be used
   twice.
 - **Freshness:** not required. Receipts minted earlier, or bought on a market, are
   valid: the lister wanted goods at the destination, and receipts prove they are
@@ -147,20 +179,79 @@ The delivery check is identical in both modes.
   adapter emits `ReceiptDelivery { action_id, collection_id, lines }` for indexers
   and disputes.
 
-### 5. The depot's extension must stay warehouse receipts
+### 5. Depots are dedicated to logistics
 
-Receipts are claims on items in a depot's open inventory. If a depot's owner swaps
-the extension, the new extension can withdraw those items and leave the receipts
-unbacked. Both depots of a job must therefore keep warehouse receipts as their
-extension, with the configuration frozen:
+A depot is a storage unit given to the logistics network. It does not double as a
+market, a vending machine or anything else: its extension is warehouse receipts,
+frozen.
 
-- **The adapter checks `is_extension_frozen`** for the destination at delivery.
-- **Registration should prove** the extension is warehouse receipts. world-contracts
-  has no public getter for the current extension (#22), so this is an open question.
-- **Losing the extension or the SSU going offline** during a job ends it as void,
-  not as the hauler's breach, once ADR 0006 rulings exist.
+- **Why frozen:** receipts are claims on the depot's open inventory. Only a frozen
+  slot guarantees no other extension can ever drain it.
+- **Registration proves it once.** The world adapter's registration step, in one
+  transaction:
+  1. checks `is_extension_frozen`;
+  2. calls `deposit_for_receipt` for one unit, then `redeem_receipt` for it.
 
-### 6. Adapter identity, versions and revocation
+  The deposit succeeds only if warehouse receipts is the installed extension, and
+  the frozen slot keeps it installed for the SSU's lifetime. The registrant needs
+  one item in their Character inventory at the depot.
+- **No per-delivery extension check.** After registration, presenting the SSU
+  (decision 1) is enough: a frozen slot cannot change, and an SSU that still exists
+  has not been unanchored.
+- **Markets use the depot's receipts, not the depot.** Receipts are bearer
+  balances, so a market can trade them without any access to the SSU.
+
+Whether one SSU may serve several networks remains ADR 0007 open question 2.
+
+### 6. Markets reach Minehaul as delivery endpoints
+
+A market that needs goods moved does not install itself on a depot. It uses
+Minehaul's delivery system, and from the job's point of view it is an
+**endpoint**: a destination depot plus a recipient that is not the lister's own
+address, such as the lister's account on the market. The goods physically sit in
+the depot; the market receives the claim on them.
+
+This is a direction, not yet a design. What holds now:
+
+- **An endpoint is (depot, recipient).** The depot is always a registered,
+  dedicated depot; there is no separate "market depot".
+- **The recipient is fixed at listing** and carried in the `DeliveryRequest`, so
+  decision 1's fixed-recipient rule still holds.
+- **Depositing into a market account** needs a per-market adapter or call, designed
+  when a market such as Trinary Exchange offers one.
+
+### 7. Depot loss voids the jobs that depend on it
+
+A destroyed depot takes its goods with it. Minehaul does not insure against that.
+It makes sure the network stays consistent and nobody is punished for the loss.
+
+- **The network attests the loss.** Since destruction cannot be proven on chain,
+  the network's admin role (ADR 0007) calls `mark_depot_lost`, citing the
+  `UNANCHORED` event. The registry keeps the entry as `Lost { at_ms }` instead of
+  deleting it, so jobs and indexers can still resolve it.
+- **No new work touches a lost depot.** Listings and claims naming it abort.
+- **Jobs that depend on it become voidable.** Anyone may void a listed, claimed or
+  collected job whose source or destination is lost: escrow returns to the lister,
+  collateral to the hauler, nothing is slashed, nothing goes to the treasury. This
+  is ADR 0006's `Void` outcome.
+- **Losses stay where the world put them.** Escrowed receipts of a lost source
+  depot return to the lister unbacked; delivered receipts of a lost destination are
+  the recipient's. Minehaul does not shift a loss to another party.
+- **If the admin does not attest,** the hauler disputes the expired job and argues
+  the loss there, and the resolver can rule `Void`.
+- **Why an attestation is acceptable here:** `Void` returns every stake to its
+  owner, so a false mark gains nobody value; at worst it lets a hauler escape a
+  slash, and the admin who could do that already judges disputes.
+- **Rebuilding is registering afresh.** A rebuilt structure is a new object with a
+  new ID and goes through decision 5 again.
+- **Intents** (ADR 0008) drop a lost depot from their targets, and are void if none
+  remain.
+
+Offline is not lost. An SSU without fuel keeps its items but blocks deposits and
+redemptions, so delivery to it fails until it is back online while the job's
+deadline keeps running (open question 3).
+
+### 8. Adapter identity, versions and revocation
 
 - **One adapter package per world-contracts version.** `minehaul_world_v0` targets
   `8eb197e`; a breaking world upgrade gets `minehaul_world_v1`, with its own
@@ -175,30 +266,37 @@ extension, with the configuration frozen:
 - **Upgrades** of an adapter package follow ADR 0007 decision 10: the `UpgradeCap`
   is under governance with a timelock, or the package is immutable.
 
-### 7. What governance sees in a dispute
+### 9. What governance sees in a dispute
 
-Exchange-mode delivery leaves little to dispute: the lister holds the destination
-receipts and the hauler the source receipts. Disputes reduce to:
+Exchange-mode delivery leaves little to dispute: the recipient holds the
+destination receipts and the hauler the source receipts. Disputes reduce to:
 
 - **A missed deadline:** the job has no `ActionDelivered` event in time.
-- **Unbacked receipts:** redeeming the delivered receipts at the destination fails.
-  That failed redemption, together with the `ReceiptDelivery` event, is the
-  evidence.
+- **A lost or offline depot:** the `UNANCHORED` or status events, judged under
+  decision 7.
+
+Unbacked receipts at a registered depot should be impossible under decision 5. If
+redeeming delivered receipts fails anyway, that failure and the `ReceiptDelivery`
+event are evidence of a bug in warehouse receipts or this adapter, not a hauler
+breach.
 
 Networks using this adapter may set a short challenge window (zero is already
 allowed).
 
-### 8. Conformance
+### 10. Conformance
 
 A delivery adapter conforms if, on the localnet harness, it:
 
 - **certifies** a multi-line manifest delivered with exact receipts at the
   destination;
 - **rejects** receipts from another depot's collection, a wrong `asset_id`, short
-  or excess quantities, a `VaultConfig` for another SSU, and a request for another
-  network or registry;
-- **sends** delivered receipts only to the request's lister;
+  or excess quantities, a `VaultConfig` for another SSU, a missing or mismatched
+  source or destination SSU, and a request for another network or registry;
+- **sends** delivered receipts only to the request's recipient;
 - **leaves escrow untouched** when certification aborts.
+
+Its registration step conforms if it rejects an SSU whose slot is not frozen, and
+one frozen on another extension.
 
 The localnet `LocalDelivery` is replaced by a localnet build of this adapter
 against world-contracts and warehouse receipts, so the acceptance matrix exercises
@@ -210,8 +308,8 @@ the production contract.
    and confirm all three link the same published package on each target network.
 2. **Depend on warehouse receipts** from `minehaul_world_v0`, which deliberately does
    not yet.
-3. **Run warehouse receipts in the localnet harness**, with real SSUs and the
-   server-sponsored bridge simulated.
+3. **Run warehouse receipts in the localnet harness**, with real SSUs, the
+   server-sponsored bridge simulated, and `unanchor` available to scenarios.
 
 ## Consequences
 
@@ -220,43 +318,58 @@ the production contract.
 - **No oracle and no operator.** Delivery is checked entirely on chain against
   server-backed inventory, so TODO's open questions about who runs the adapter and
   whether an off-chain receipt is needed are answered: nobody, and no.
-- **No extension slot conflict with receipts.** Minehaul composes with warehouse
-  receipts instead of claiming the slot, so a depot's receipts can serve Minehaul
-  and any market that trades them.
+- **No extension slot conflict.** Depots run warehouse receipts and nothing else;
+  Minehaul and markets both work through receipts.
 - **Exchange mode needs no cargo valuation.** The lister never gives up custody
   without receiving the destination goods.
 - **Haulers can source goods anywhere**, including buying destination receipts from
   another holder, which matches the solver model in the [vision](../vision.md).
+- **Depot loss has a defined outcome.** The network stays consistent and nobody is
+  slashed for a destroyed structure.
 
 **Negative**
 
 - **Exchange mode needs hauler capital.** A hauler must hold goods at the
   destination before being paid in source goods. Haulers without stock wait for
   courier mode.
-- **Depots must run warehouse receipts, frozen.** Networks cannot use depots with
-  other extensions.
-- **Fungible delivery.** The lister receives goods of the same type and quantity,
+- **Depots are single-purpose and frozen for life.** An owner who registers a depot
+  gives up its extension slot permanently.
+- **Depot owners are still trusted not to tear depots down.** Freezing does not stop
+  `unanchor`. A network chooses which depots to register, and that is the trust
+  boundary.
+- **Depot loss is attested, not proven.** It rests on the network's admin role.
+- **Fungible delivery.** The recipient receives goods of the same type and quantity,
   not the same units. Items with per-unit identity cannot use this adapter.
 - **Trust moves to warehouse receipts.** A bug there can make receipts unbacked.
 
 ## Open questions
 
-1. **Proving the extension at registration.** Without a public getter, how does
-   registration confirm a depot runs warehouse receipts? Options: an upstream
-   getter, or a registration step that mints and burns a receipt.
-2. **Tenants.** Items and SSUs carry a tenant. Must a job's two depots share one?
-3. **Capacity.** A destination's open inventory can be full. Does that void the job
+1. **Tenants.** Items and SSUs carry a tenant. Must a job's two depots share one?
+2. **Capacity.** A destination's open inventory can be full. Does that void the job
    or count against the hauler?
-4. **Courier mode's collection step.** Should the receipts be released freely, or
+3. **Offline depots.** Should time a depot spends offline extend the deadlines of
+   jobs that need it, and can the adapter observe it (a public status getter)?
+4. **Courier mode and depot loss.** After collection the hauler holds the lister's
+   goods. If the destination is then lost, voiding cannot take them back. Should
+   the lister re-route to another depot, or the cargo bond pay out? This must be
+   settled before courier mode ships.
+5. **Courier mode's collection step.** Should the receipts be released freely, or
    only through an adapter call that redeems them at the source in the same
    transaction?
-5. **ADR 0008 intents.** A fill would deliver destination receipts the same way, with
-   no source receipts. Does this settle ADR 0008's supply certification?
+6. **Market endpoints.** Which recipients may a listing name, and who supplies the
+   call that deposits into a market account (decision 6)?
+7. **ADR 0008 intents.** A fill would deliver destination receipts the same way, with
+   no source receipts. Does this settle ADR 0008's supply certification, and retire
+   its requirement that the adapter be the depot's extension?
 
 ## Verification (planned)
 
-- **Unit tests** in the adapter package for every rejection in decision 8.
+- **Unit tests** in the adapter package for every rejection in decision 10.
 - **Compile probes:** a module outside the adapter cannot certify a receipt delivery.
+- **Core tests:** listings and claims naming a lost depot abort; voiding a job with a
+  lost depot returns escrow and collateral in full; voiding a job whose depots are
+  all live aborts.
 - **Live scenarios:** exchange-mode Transfer with two item types; delivery with
   receipts bought from a third party; a rejected delivery with another depot's
-  receipts; an unfrozen destination rejected.
+  receipts; registration of an unfrozen SSU rejected; a destination unanchored
+  mid-job, marked lost, and the job voided without a slash.

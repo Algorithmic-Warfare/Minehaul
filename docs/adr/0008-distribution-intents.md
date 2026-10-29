@@ -104,6 +104,12 @@ The adapter must be the target SSU's extension. If the extension is swapped or t
 SSU goes offline during a fill, the fill ends as `Void` (bond returned), not as a
 breach.
 
+[ADR 0009](0009-delivery-adapter-contract.md) proposes instead that depots run
+warehouse receipts, frozen, and that delivery is handing over destination
+receipts. A fill could then be certified the same way without the adapter
+holding the extension slot; its open question 7 asks whether that settles this
+decision.
+
 ### 3. Delivered goods stay held until the fill discharges
 
 If goods went straight to the lister, the lister would hold them while payment
