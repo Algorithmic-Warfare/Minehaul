@@ -13,7 +13,7 @@ version = "0.0.1"
 [dependencies]
 minehaul_core      = { local = "../minehaul_core" }
 armature           = { git = "https://github.com/loash-industries/armature.git",     subdir = "packages/armature_framework", rev = "4bd6fbaea43fab3967b0c1627b1bea679abc78c3" }
-multicoin          = { git = "https://github.com/Algorithmic-Warfare/multicoin",      subdir = "packages/multicoin",          rev = "c7a97f2f42ffbddbe2d44686cbc9eebd1810b8d6", override = true }
+multicoin          = { git = "https://github.com/Algorithmic-Warfare/multicoin",      subdir = "packages/multicoin",          rev = "2772c26d24c02671726d39f167b8f772777875d9", override = true }
 # warehouse_receipts is intentionally NOT depended on yet — it's needed for
 # the injection/extraction paths (deposit_for_receipt / redeem_receipt) which
 # arrive in a follow-up PR. Adding it now would force its broken-at-HEAD
@@ -21,4 +21,4 @@ multicoin          = { git = "https://github.com/Algorithmic-Warfare/multicoin",
 world              = { git = "https://github.com/evefrontier/world-contracts.git", subdir = "contracts/world", rev = "8eb197e4573275d6f45b0da2c69ee793487a49fd" }
 
 [environments]
-testnet_wip = "4c78adac"
+testnet_stillness = "4c78adac"
