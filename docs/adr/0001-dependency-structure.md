@@ -104,9 +104,9 @@ drift.
 
 ### 6. The world pin follows warehouse-receipts
 
-`minehaul_world_v0` pins `world` to the rev that warehouse-receipts uses, so
-`world::storage_unit::StorageUnit` and related types are the same type in both
-packages. warehouse-receipts itself is **not** a dependency yet. It is only
+`minehaul_world_v0` must pin `world` to the rev that warehouse-receipts uses, so
+that `world::storage_unit::StorageUnit` and related types are the same type in
+both packages. **This is currently unmet** (drift item 3). warehouse-receipts itself is **not** a dependency yet. It is only
 needed for the inject/extract paths (`deposit_for_receipt` /
 `redeem_receipt`), and including it now would pull its failing tests into our
 test runs.
@@ -117,7 +117,9 @@ All packages declare `testnet_stillness = "4c78adac"` (Sui testnet chain ID),
 the environment where multicoin, armature, Trinary Exchange and
 warehouse-receipts are published. CI
 ([`.github/workflows/pr.yml`](../../.github/workflows/pr.yml)) builds and tests
-every `packages/*` with `-e testnet`.
+every `packages/*` with `-e testnet`. It cannot use `-e testnet_stillness` yet:
+our armature pin does not declare that environment, so the build fails. Switch
+CI once armature is bumped (drift item 2).
 
 ## Consequences
 
@@ -125,14 +127,16 @@ every `packages/*` with `-e testnet`.
 
 - A world-contracts upgrade touches one adapter package, not the protocol.
 - Governance and world integration can change independently.
-- Pinned SHAs give reproducible builds, and `Move.lock` records the full
-  resolved graph.
+- Pinned SHAs give reproducible builds. `Move.lock` files are generated
+  locally and not committed (`.gitignore`).
 
 **Negative / costs**
 
-- An armature or multicoin bump has to be repeated in all three `Move.toml`
-  files, and every bump means regenerating the affected `Move.lock` files.
-  (`world` is only declared in `minehaul_world_v0`.)
+- A pin bump has to be repeated in every manifest that declares the
+  dependency: the three `packages/*/Move.toml` and the localnet package
+  `integration/game/move/Move.toml` (which declares armature, multicoin and
+  world). `scripts/game-env.sh` also hardcodes the armature and multicoin revs
+  to find their sources.
 - Core can't check world facts itself. It trusts whichever adapter is
   registered, so adapter authorisation is security-critical (ADR 0002).
 - Type identity ties us to what other packages link. **Any package that
@@ -157,7 +161,9 @@ or integrating:
    favour of organisational units (`ou.move`), so the compatibility check
    below, made on an earlier `cycle-7` commit, no longer holds.
    [ADR 0007](0007-network-authority.md) removes armature from core, so bump
-   armature with that work, in `minehaul_armature` only. Until then our
+   armature with that work. Core then no longer declares it, but
+   `minehaul_armature`, `minehaul_world_v0` (its tests use armature) and the
+   localnet package still do, and all three must be bumped together. Until then our
    armature pin is not the armature published on `testnet_stillness`, so
    **Minehaul is not deployable there yet**.
 3. **world lags warehouse-receipts.** warehouse-receipts `main` (`fe73b95a`,
@@ -165,8 +171,9 @@ or integrating:
    `8eb197e4`, which has no testnet publication. Bump world to match before
    `minehaul_world_v0` depends on warehouse-receipts
    ([ADR 0009](0009-delivery-adapter-contract.md) prerequisite 2).
-4. **Sui pins date from June 2026.** TriEx, armature and warehouse-receipts
-   publish with toolchain 1.74.1; we build with 1.72.2.
+4. **Sui pins date from June 2026.** multicoin and armature were published with
+   toolchain 1.74.1, Trinary Exchange and warehouse-receipts with 1.81.0; we
+   build with 1.72.2.
 
 ## armature compatibility check (2026-09-27, superseded)
 
@@ -186,11 +193,14 @@ armature API they use has the same signature: the type-state accessors,
 
 ## Upgrading a pin: checklist
 
-1. Change the rev in every `packages/*/Move.toml` that declares the dependency.
+1. Change the rev in every `packages/*/Move.toml` and in
+   `integration/game/move/Move.toml` where the dependency is declared, and in
+   `scripts/game-env.sh` for armature and multicoin.
 2. For multicoin and world, confirm the new rev's `Published.toml` has an entry
    for our target environment, and that it matches what TriEx and
    warehouse-receipts link there.
-3. Regenerate each `Move.lock` and run `sui move test` in every package.
+3. Run `sui move test` in every package, build the localnet package, and run
+   `./scripts/game-env.sh test`.
 4. If the world pin changed, check whether the adapter should become a new
    `minehaul_world_vN` package instead of an in-place edit.
 5. If the armature pin changed, rerun the ADR 0002 gap-2 check: a proposal
