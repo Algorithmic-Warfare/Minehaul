@@ -4,7 +4,8 @@
   [ADR 0005](0005-endpoint-only-transport.md)
 - **Decided:** 2026-06-21 (PRs #6, #7, #8, #10)
 - **Recorded:** 2026-09-24
-- **Revised:** 2026-09-27 (armature `cycle-7` and loash-industries/armature#168 compatibility check)
+- **Revised:** 2026-09-27 (armature `cycle-7` and loash-industries/armature#168 compatibility check);
+  2026-10-29 (multicoin aligned to `2772c26`, target environment `testnet_stillness`)
 
 ## Context
 
@@ -77,8 +78,8 @@ on its own.
 | Dependency | Repository (subdir) | Pinned rev |
 |---|---|---|
 | armature | `loash-industries/armature` (`packages/armature_framework`) | `4bd6fbaea43fab3967b0c1627b1bea679abc78c3` |
-| multicoin | `Algorithmic-Warfare/multicoin` (`packages/multicoin`) | `c7a97f2f42ffbddbe2d44686cbc9eebd1810b8d6` |
-| world | `evefrontier/world-contracts` (`contracts/world`) | `8e2e97b50fd6bbf605284bcdaae54a33a5475e89` |
+| multicoin | `Algorithmic-Warfare/multicoin` (`packages/multicoin`) | `2772c26d24c02671726d39f167b8f772777875d9` |
+| world | `evefrontier/world-contracts` (`contracts/world`) | `8eb197e4573275d6f45b0da2c69ee793487a49fd` |
 | Sui, MoveStdlib | `MystenLabs/sui` (implicit) | `367fd808279bed26f7c64fc63160062a2ee29ab7` (from `Move.lock`) |
 
 The same rev is used in every package that declares a dependency, so a bump
@@ -87,28 +88,38 @@ has to be made in all manifests at once.
 ### 5. multicoin is declared with `override = true`
 
 armature at the pinned rev pulls multicoin at a different commit (`330d3393`).
-The override makes every package in the graph resolve to one multicoin, which
-keeps `multicoin::Balance` a single type across core, armature and the adapter.
+The override was meant to make every package in the graph resolve to one
+multicoin, so that `multicoin::Balance` is a single type across core, armature
+and the adapter.
 
-armature's `cycle-7` branch pins multicoin `e384bbc8`, the same commit as
-Trinary Exchange. Once we move to it and bump our own multicoin pin to match,
-the override has nothing to override. Keep it anyway, as protection against
-future drift.
+**It does not, under Sui 1.72.2's package manager.** The lockfile pins armature's
+`330d3393` as `multicoin` and ours as `multicoin_1`, and both are compiled into
+the build. Nothing breaks today because no Minehaul code passes multicoin values
+to armature. The localnet harness gives every package one local multicoin, so it
+cannot show the split.
+
+armature `main` (Cycle 7) has no multicoin dependency, so bumping armature
+removes the second copy. Keep the override anyway, as protection against future
+drift.
 
 ### 6. The world pin follows warehouse-receipts
 
-`minehaul_world_v0` pins `world` to the rev that warehouse-receipts uses, so
-`world::storage_unit::StorageUnit` and related types are the same type in both
-packages. warehouse-receipts itself is **not** a dependency yet. It is only
+`minehaul_world_v0` must pin `world` to the rev that warehouse-receipts uses, so
+that `world::storage_unit::StorageUnit` and related types are the same type in
+both packages. **This is currently unmet** (drift item 3). warehouse-receipts itself is **not** a dependency yet. It is only
 needed for the inject/extract paths (`deposit_for_receipt` /
 `redeem_receipt`), and including it now would pull its failing tests into our
 test runs.
 
 ### 7. Target environment
 
-All packages declare `testnet_wip = "4c78adac"` (Sui testnet chain ID). CI
+All packages declare `testnet_stillness = "4c78adac"` (Sui testnet chain ID),
+the environment where multicoin, armature, Trinary Exchange and
+warehouse-receipts are published. CI
 ([`.github/workflows/pr.yml`](../../.github/workflows/pr.yml)) builds and tests
-every `packages/*` with `-e testnet`.
+every `packages/*` with `-e testnet`. It cannot use `-e testnet_stillness` yet:
+our armature pin does not declare that environment, so the build fails. Switch
+CI once armature is bumped (drift item 2).
 
 ## Consequences
 
@@ -116,14 +127,16 @@ every `packages/*` with `-e testnet`.
 
 - A world-contracts upgrade touches one adapter package, not the protocol.
 - Governance and world integration can change independently.
-- Pinned SHAs give reproducible builds, and `Move.lock` records the full
-  resolved graph.
+- Pinned SHAs give reproducible builds. `Move.lock` files are generated
+  locally and not committed (`.gitignore`).
 
 **Negative / costs**
 
-- An armature or multicoin bump has to be repeated in all three `Move.toml`
-  files, and every bump means regenerating the affected `Move.lock` files.
-  (`world` is only declared in `minehaul_world_v0`.)
+- A pin bump has to be repeated in every manifest that declares the
+  dependency: the three `packages/*/Move.toml` and the localnet package
+  `integration/game/move/Move.toml` (which declares armature, multicoin and
+  world). `scripts/game-env.sh` also hardcodes the armature and multicoin revs
+  to find their sources.
 - Core can't check world facts itself. It trusts whichever adapter is
   registered, so adapter authorisation is security-critical (ADR 0002).
 - Type identity ties us to what other packages link. **Any package that
@@ -131,43 +144,38 @@ every `packages/*` with `-e testnet`.
   same *published* package (same original ID) on the target environment.**
   Matching source code is not enough.
 
-## Current drift (as of 2026-09-27)
+## Current drift (as of 2026-10-29)
 
 These don't change the decision above, but they must be fixed before deploying
 or integrating:
 
-1. **Trinary Exchange links a different multicoin publication.** multicoin's
-   Move source is identical at `c7a97f2f` (ours) and `e384bbc8` (TriEx's). Only
-   `Published.toml`/`Move.toml` differ, and the published addresses moved:
+1. **multicoin: resolved.** Every package pins `2772c26d`, the rev Trinary
+   Exchange and warehouse-receipts link. Its source is identical to the previous
+   pin `c7a97f2f`; only `Move.toml` and `Published.toml` changed. On
+   `testnet_stillness` it is published at `0xdbb7…e2ba`, the publication
+   TriEx links.
+2. **armature is a breaking bump, deferred to ADR 0007.** Cycle 7
+   (loash-industries/armature#171) merged to `main` on 2026-09-29 and is
+   published on `testnet_stillness` at `0x0a9e…624c`. It removes the
+   `armature::dao` module that core imports (`DAO`, `is_governance_member`) in
+   favour of organisational units (`ou.move`), so the compatibility check
+   below, made on an earlier `cycle-7` commit, no longer holds.
+   [ADR 0007](0007-network-authority.md) removes armature from core, so bump
+   armature with that work. Core then no longer declares it, but
+   `minehaul_armature`, `minehaul_world_v0` (its tests use armature) and the
+   localnet package still do, and all three must be bumped together. Until then our
+   armature pin is not the armature published on `testnet_stillness`, so
+   **Minehaul is not deployable there yet**.
+3. **world lags warehouse-receipts.** warehouse-receipts `main` (`fe73b95a`,
+   two-phase vault init) pins world `d33ff232`, 33 commits ahead of our
+   `8eb197e4`, which has no testnet publication. Bump world to match before
+   `minehaul_world_v0` depends on warehouse-receipts
+   ([ADR 0009](0009-delivery-adapter-contract.md) prerequisite 2).
+4. **Sui pins date from June 2026.** multicoin and armature were published with
+   toolchain 1.74.1, Trinary Exchange and warehouse-receipts with 1.81.0; we
+   build with 1.72.2.
 
-   | multicoin rev | `testnet_stillness` | `testnet_wip` |
-   |---|---|---|
-   | `c7a97f2f` (Minehaul) | `0x4a28…07ac` | *(not published)* |
-   | `e384bbc8` (TriEx, armature `cycle-7`) | `0x99a4…6cfb` | `0x4a28…07ac` |
-
-   Minehaul targets `testnet_wip`, but its pinned multicoin has no `testnet_wip`
-   entry. To accept balances settled on TriEx, Minehaul must move to
-   `e384bbc8` (or later) and target the same environment TriEx is deployed on.
-   The armature upgrade below requires this bump anyway, so do both together.
-2. **`minehaul_world_v0/Move.lock` is stale.** It still pins
-   `warehouse_receipts` (`6fdb4e21`) and a third multicoin copy
-   (`multicoin_2`), although the manifest no longer declares that dependency.
-   Regenerate the lockfile.
-3. **armature has a breaking redeploy in progress.** `main` has only five
-   commits since our pin (deploy config and docs; no framework code). The
-   framework changes are on the `cycle-7` branch:
-   - loash-industries/armature#162–#167 (ARMATURE-9 to ARMATURE-15), merged 24–26 Sep 2026: a gas
-     overhaul, not upgrade-compatible with existing DAOs.
-   - armature#168 (ROAD-39, type permissions), still open, built on top.
-
-   `cycle-7` isn't published yet: its `Published.toml` still lists the old
-   addresses. **Stay on `4bd6fbae` until the redeploy is published**, then
-   bump armature and multicoin in the same change. See the compatibility
-   results below and ADR 0002 for what changes.
-4. **world-contracts and Sui pins date from June 2026.** Before bumping
-   `world`, check the warehouse-receipts pin (decision 6).
-
-## armature compatibility check (2026-09-27)
+## armature compatibility check (2026-09-27, superseded)
 
 Each package was built and tested (`sui move test -e testnet`, Sui 1.72.2)
 with armature bumped to the target rev and multicoin to `e384bbc8`. The tests
@@ -185,11 +193,14 @@ armature API they use has the same signature: the type-state accessors,
 
 ## Upgrading a pin: checklist
 
-1. Change the rev in every `packages/*/Move.toml` that declares the dependency.
+1. Change the rev in every `packages/*/Move.toml` and in
+   `integration/game/move/Move.toml` where the dependency is declared, and in
+   `scripts/game-env.sh` for armature and multicoin.
 2. For multicoin and world, confirm the new rev's `Published.toml` has an entry
    for our target environment, and that it matches what TriEx and
    warehouse-receipts link there.
-3. Regenerate each `Move.lock` and run `sui move test` in every package.
+3. Run `sui move test` in every package, build the localnet package, and run
+   `./scripts/game-env.sh test`.
 4. If the world pin changed, check whether the adapter should become a new
    `minehaul_world_vN` package instead of an in-place edit.
 5. If the armature pin changed, rerun the ADR 0002 gap-2 check: a proposal
