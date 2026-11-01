@@ -71,7 +71,9 @@ validate_scenario() {
                  (.items | type == "array") and
                  all(.items[]; (.typeId | type == "number" and . > 0) and
                                 (.itemId | type == "number" and . > 0) and
-                                .quantity == 10 and .volume == 10))) and
+                                .quantity == 10 and .volume == 10 and
+                                (.receiptHolder == null or
+                                 ([.receiptHolder] | inside(["lister", "hauler", "arbiter"])))))) and
       (.gates | type == "array" and (length == 0 or length == 2) and
         (length == 0 or .[0].typeId == .[1].typeId) and
         all(.[]; (.name | type == "string" and length > 0) and
@@ -538,6 +540,18 @@ multicoin = { local = "../multicoin" }
 world = { local = "$WORLD_DIR/contracts/world" }
 EOF
             ;;
+        warehouse_receipts)
+            cat > "$MOVE_DIR/$package/Move.toml" <<EOF
+[package]
+name = "warehouse_receipts"
+edition = "2024"
+version = "0.0.1"
+
+[dependencies]
+multicoin = { local = "../multicoin" }
+world = { local = "$WORLD_DIR/contracts/world" }
+EOF
+            ;;
         minehaul_local)
             cat > "$MOVE_DIR/$package/Move.toml" <<EOF
 [package]
@@ -549,6 +563,7 @@ version = "0.0.1"
 minehaul_core = { local = "../minehaul_core" }
 minehaul_armature = { local = "../minehaul_armature" }
 minehaul_world_v0 = { local = "../minehaul_world_v0" }
+warehouse_receipts = { local = "../warehouse_receipts" }
 armature = { local = "../armature" }
 multicoin = { local = "../multicoin" }
 world = { local = "$WORLD_DIR/contracts/world" }
@@ -561,27 +576,33 @@ EOF
 prepare_local_move_workspace() {
     # Resolve the pinned dependency sources into the isolated HOME first.
     with_home sui move build --path "$ROOT_DIR/packages/minehaul_core" -e testnet >/dev/null
-    local armature_sources multicoin_sources
+    with_home sui move build --path "$ROOT_DIR/integration/game/move" -e testnet >/dev/null
+    local armature_sources multicoin_sources receipts_sources
     armature_sources="$(find "$HOME_DIR/.move/git" -type d \
         -path '*4bd6fbaea43fab3967b0c1627b1bea679abc78c3/packages/armature_framework/sources' | head -1)"
     multicoin_sources="$(find "$HOME_DIR/.move/git" -type d \
         -path '*2772c26d24c02671726d39f167b8f772777875d9/packages/multicoin/sources' | head -1)"
     [[ -d "$armature_sources" ]] || fail "could not resolve pinned armature sources"
+    receipts_sources="$(find "$HOME_DIR/.move/git" -type d \
+        -path '*fe73b95a753d440ae3944b71217fb39a07cecac2/packages/contracts/sources' | head -1)"
     [[ -d "$multicoin_sources" ]] || fail "could not resolve pinned multicoin sources"
+    [[ -d "$receipts_sources" ]] || fail "could not resolve pinned warehouse-receipts sources"
 
     rm -rf "$MOVE_DIR"
     mkdir -p "$MOVE_DIR"
     mkdir -p "$MOVE_DIR/multicoin" "$MOVE_DIR/armature" \
         "$MOVE_DIR/minehaul_core" "$MOVE_DIR/minehaul_armature" \
-        "$MOVE_DIR/minehaul_world_v0" "$MOVE_DIR/minehaul_local"
+        "$MOVE_DIR/minehaul_world_v0" "$MOVE_DIR/warehouse_receipts" "$MOVE_DIR/minehaul_local"
     cp -R "$multicoin_sources" "$MOVE_DIR/multicoin/sources"
+    cp -R "$receipts_sources" "$MOVE_DIR/warehouse_receipts/sources"
     cp -R "$armature_sources" "$MOVE_DIR/armature/sources"
     cp -R "$ROOT_DIR/packages/minehaul_core/sources" "$MOVE_DIR/minehaul_core/sources"
     cp -R "$ROOT_DIR/packages/minehaul_armature/sources" "$MOVE_DIR/minehaul_armature/sources"
     cp -R "$ROOT_DIR/packages/minehaul_world_v0/sources" "$MOVE_DIR/minehaul_world_v0/sources"
     cp -R "$ROOT_DIR/integration/game/move/sources" "$MOVE_DIR/minehaul_local/sources"
     local package
-    for package in multicoin armature minehaul_core minehaul_armature minehaul_world_v0 minehaul_local; do
+    for package in multicoin armature minehaul_core minehaul_armature minehaul_world_v0 \
+        warehouse_receipts minehaul_local; do
         write_local_move_manifest "$package"
     done
     cp "$WORLD_DIR/contracts/world/Pub.localnet.toml" "$LOCAL_PUBFILE"
@@ -607,17 +628,19 @@ publish_minehaul() {
         [[ "$(cat "$PROTOCOL_SOURCE_MARKER")" == "$wanted_hash" ]] || \
             fail "Minehaul sources changed since local publication; run reset"
         say "Minehaul packages already published"
+        verify_depots
         return
     fi
 
     prepare_local_move_workspace
     with_home sui client switch --address minehaul-lister >/dev/null
-    local multicoin_pkg armature_pkg core_pkg governance_pkg world_adapter_pkg local_pkg
+    local multicoin_pkg armature_pkg core_pkg governance_pkg world_adapter_pkg receipts_pkg local_pkg
     multicoin_pkg="$(publish_local_package multicoin | tail -1)"
     armature_pkg="$(publish_local_package armature | tail -1)"
     core_pkg="$(publish_local_package minehaul_core | tail -1)"
     governance_pkg="$(publish_local_package minehaul_armature | tail -1)"
     world_adapter_pkg="$(publish_local_package minehaul_world_v0 | tail -1)"
+    receipts_pkg="$(publish_local_package warehouse_receipts | tail -1)"
     local_pkg="$(publish_local_package minehaul_local | tail -1)"
 
     local world_auth local_auth
@@ -628,34 +651,120 @@ publish_minehaul() {
         select(.type == "created" and .objectType == ($core + "::witnesses::AdapterAuth")) |
         .objectId' "$RUNTIME_DIR/publish-minehaul_local.json")"
     [[ -n "$world_auth" && -n "$local_auth" ]] || fail "adapter auth objects missing after publication"
+    local depots="$RUNTIME_DIR/depots.json"
+    setup_depots "${1:-$DEFAULT_SCENARIO}" "$local_pkg" > "$depots"
 
     jq -n \
         --arg multicoin "$multicoin_pkg" --arg armature "$armature_pkg" \
         --arg core "$core_pkg" --arg governance "$governance_pkg" \
-        --arg worldAdapter "$world_adapter_pkg" --arg local "$local_pkg" \
+        --arg worldAdapter "$world_adapter_pkg" --arg receipts "$receipts_pkg" --arg local "$local_pkg" \
         --arg worldAuth "$world_auth" --arg localAuth "$local_auth" \
+        --slurpfile depots "$depots" \
         '{packages: {multicoin: $multicoin, armature: $armature, core: $core,
-          governance: $governance, worldAdapter: $worldAdapter, local: $local},
-          adapters: {world: $worldAuth, localDelivery: $localAuth}}' > "$PROTOCOL_DEPLOYMENT"
+          governance: $governance, worldAdapter: $worldAdapter,
+          warehouseReceipts: $receipts, local: $local},
+          adapters: {world: $worldAuth, localDelivery: $localAuth},
+          depots: $depots[0]}' > "$PROTOCOL_DEPLOYMENT"
     printf '%s\n' "$wanted_hash" > "$PROTOCOL_SOURCE_MARKER"
     say "Minehaul publication recorded: $PROTOCOL_DEPLOYMENT"
+    verify_depots
+}
+
+call_package() {
+    local actor="$1" package="$2" module="$3" function="$4" output="$5"
+    shift 5
+    with_home sui client switch --address "$actor" >/dev/null
+    if [[ "$#" -eq 0 ]]; then
+        with_home sui client call --package "$package" --module "$module" --function "$function" \
+            --gas-budget 500000000 --json > "$output"
+    else
+        with_home sui client call --package "$package" --module "$module" --function "$function" \
+            --args "$@" --gas-budget 500000000 --json > "$output"
+    fi
+    jq -e '.effects.status.status == "success"' "$output" >/dev/null || \
+        fail "local flow call failed: $module::$function"
 }
 
 call_local() {
     local actor="$1" function="$2" output="$3"
     shift 3
-    local package
-    package="$(jq -r '.packages.local' "$PROTOCOL_DEPLOYMENT")"
-    with_home sui client switch --address "$actor" >/dev/null
-    if [[ "$#" -eq 0 ]]; then
-        with_home sui client call --package "$package" --module scenario --function "$function" \
-            --gas-budget 500000000 --json > "$output"
-    else
-        with_home sui client call --package "$package" --module scenario --function "$function" \
-            --args "$@" --gas-budget 500000000 --json > "$output"
-    fi
-    jq -e '.effects.status.status == "success"' "$output" >/dev/null || \
-        fail "local flow call failed: $function"
+    call_package "$actor" "$(jq -r '.packages.local' "$PROTOCOL_DEPLOYMENT")" scenario "$function" "$output" "$@"
+}
+
+# Turn each seeded SSU into an ADR 0009 depot: a warehouse-receipts vault with
+# the extension installed and frozen. Then mint receipts for every item the
+# scenario assigns a receiptHolder, and print the depot records as JSON.
+setup_depots() {
+    local scenario="$1" local_pkg="$2" character name storage_id cap tx vault collection
+    character="$(jq -r '.objects[] | select(.kind == "character" and .name == "lister") | .objectId' "$MANIFEST_FILE")"
+    local -a depots=()
+    while IFS=$'\t' read -r name storage_id; do
+        say "setting up warehouse-receipts depot: $name" >&2
+        cap="$(find_owner_cap "$character" "$storage_id")" || fail "OwnerCap missing for $name"
+        tx="$RUNTIME_DIR/depot-$name-setup.json"
+        call_package minehaul-lister "$local_pkg" receipts setup_depot "$tx" "$storage_id" "$character" "$cap"
+        vault="$(created_object "$tx" '::vault::VaultConfig')"
+        collection="$(created_object "$tx" '::multicoin::Collection')"
+        [[ -n "$vault" && -n "$collection" ]] || fail "vault objects missing for $name"
+
+        local item type_id quantity holder holder_addr balance
+        local -a receipts=()
+        while IFS=$'\t' read -r item type_id quantity holder; do
+            holder_addr="$(role_address "$holder")"
+            tx="$RUNTIME_DIR/depot-$name-receipt-$item.json"
+            call_package minehaul-lister "$local_pkg" receipts deposit_for_holder "$tx" \
+                "$storage_id" "$character" "$cap" "$vault" "$collection" "$type_id" "$quantity" "$holder_addr"
+            balance="$(find_owned_balance "$tx" "$type_id" "$quantity" "$holder_addr")"
+            receipts+=("$(jq -n --arg item "$item" --arg holder "$holder" --arg owner "$holder_addr" \
+                --arg balance "$balance" --argjson typeId "$type_id" --argjson quantity "$quantity" \
+                '{item: $item, holder: $holder, owner: $owner, balance: $balance,
+                  typeId: $typeId, quantity: $quantity}')")
+        done < <(jq -r --arg name "$name" '.storageUnits[] | select(.name == $name) |
+            .items[] | select(.receiptHolder != null) |
+            [.name, .typeId, .quantity, .receiptHolder] | @tsv' "$scenario")
+        depots+=("$(jq -n --arg name "$name" --arg storageUnit "$storage_id" \
+            --arg vaultConfig "$vault" --arg collection "$collection" \
+            --argjson receipts "$( ((${#receipts[@]})) && printf '%s\n' "${receipts[@]}" | jq -s . || echo '[]')" \
+            '{name: $name, storageUnit: $storageUnit, vaultConfig: $vaultConfig,
+              collection: $collection, receipts: $receipts}')")
+    done < <(jq -r '.objects[] | select(.kind == "storage-unit") | [.name, .objectId] | @tsv' "$MANIFEST_FILE")
+    printf '%s\n' "${depots[@]}" | jq -s .
+}
+
+# Check every depot on chain: warehouse receipts is the installed extension,
+# the configuration is frozen, the vault is bound to the SSU, and each seeded
+# receipt is owned by its holder with the expected collection, type and amount.
+verify_depots() {
+    local failed=0 name storage_id vault collection
+    while IFS=$'\t' read -r name storage_id vault collection; do
+        if with_home sui client object "$storage_id" --json | \
+            jq -e '.content.extension | tostring | test("receipt::VaultAuth")' >/dev/null && \
+          with_home sui client dynamic-field "$storage_id" --json | \
+            jq -e 'tostring | test("extension_freeze::ExtensionFrozenKey")' >/dev/null && \
+          with_home sui client object "$vault" --json | \
+            jq -e --arg su "$storage_id" '.content.storage_unit_id == $su' >/dev/null; then
+            say "ok  depot/$name  vault=$vault extension=VaultAuth frozen"
+        else
+            say "invalid  depot/$name  extension, freeze or vault binding is wrong" >&2
+            failed=1
+        fi
+        local owner balance type_id quantity
+        while IFS=$'\t' read -r owner balance type_id quantity; do
+            if with_home sui client object "$balance" --json | jq -e \
+              --arg owner "$owner" --arg collection "$collection" \
+              --argjson typeId "$type_id" --argjson quantity "$quantity" '
+                .owner.AddressOwner == $owner and .content.collection == $collection and
+                (.content.asset_id | tonumber) == $typeId and
+                (.content.amount | tonumber) == $quantity' >/dev/null; then
+                say "ok  receipt/$name  type=$type_id quantity=$quantity owner=$owner"
+            else
+                say "missing  receipt/$name  type=$type_id quantity=$quantity owner=$owner" >&2
+                failed=1
+            fi
+        done < <(jq -r --arg name "$name" '.depots[] | select(.name == $name) | .receipts[] |
+            [.owner, .balance, .typeId, .quantity] | @tsv' "$PROTOCOL_DEPLOYMENT")
+    done < <(jq -r '.depots[] | [.name, .storageUnit, .vaultConfig, .collection] | @tsv' "$PROTOCOL_DEPLOYMENT")
+    [[ "$failed" -eq 0 ]] || fail "one or more depots are not set up as warehouse-receipts depots"
 }
 
 created_object() {

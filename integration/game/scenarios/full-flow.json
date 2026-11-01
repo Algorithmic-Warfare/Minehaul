@@ -23,7 +23,8 @@
           "typeId": 446,
           "itemId": 444000001,
           "quantity": 10,
-          "volume": 10
+          "volume": 10,
+          "receiptHolder": "lister"
         }
       ]
     },
@@ -31,7 +32,16 @@
       "name": "destination",
       "typeId": 88082,
       "itemId": 888800007,
-      "items": []
+      "items": [
+        {
+          "name": "delivery-stock",
+          "typeId": 446,
+          "itemId": 444000002,
+          "quantity": 10,
+          "volume": 10,
+          "receiptHolder": "hauler"
+        }
+      ]
     }
   ],
   "gates": [],

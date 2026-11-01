@@ -13,6 +13,7 @@ minehaul_world_v0 = { local = "../../../packages/minehaul_world_v0" }
 armature = { git = "https://github.com/loash-industries/armature.git", subdir = "packages/armature_framework", rev = "4bd6fbaea43fab3967b0c1627b1bea679abc78c3" }
 multicoin = { git = "https://github.com/Algorithmic-Warfare/multicoin", subdir = "packages/multicoin", rev = "2772c26d24c02671726d39f167b8f772777875d9", override = true }
 world = { git = "https://github.com/evefrontier/world-contracts.git", subdir = "contracts/world", rev = "d33ff232bd3878e8f9ad0721e18564b21facc925" }
+warehouse_receipts = { git = "https://github.com/loash-industries/warehouse-receipts.git", subdir = "packages/contracts", rev = "fe73b95a753d440ae3944b71217fb39a07cecac2" }
 
 [environments]
 testnet_stillness = "4c78adac"

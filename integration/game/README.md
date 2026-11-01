@@ -5,8 +5,10 @@ seeds a deterministic logistics fixture, publishes Minehaul to the live local ch
 executes scenario-defined Transfer lifecycles, and runs the package and security tests.
 
 The default scenario creates three characters, one fueled and online network node,
-two online Smart Storage Units, and cargo in the source SSU. The two SSUs are the
-smart assemblies Minehaul uses as its source and destination endpoints.
+two online Smart Storage Units, cargo in the source SSU and delivery stock in the
+destination SSU. The two SSUs are the smart assemblies Minehaul uses as its source
+and destination endpoints. After publication, both become depots in the sense of
+[ADR 0009](../../docs/adr/0009-delivery-adapter-contract.md) (see below).
 
 ## Commands
 
@@ -46,6 +48,8 @@ environmental gates. Gates can make a local world fixture more game-like, but Mi
 does not register them or use them to constrain travel. The pinned
 game-to-chain helper fixes each seeded item entry at quantity `10` and volume `10`, so
 the validator rejects other values instead of pretending they are configurable.
+An item may name a `receiptHolder` (`lister`, `hauler` or `arbiter`); its units are
+then deposited for warehouse receipts and the receipts sent to that actor.
 
 Generated chain state, keys, the pinned upstream checkout, deployment output, and
 logs live under `.minehaul/game/` and are ignored by Git. `reset` deletes only that
@@ -98,3 +102,27 @@ then certifies destination delivery. The official game-to-chain fixture separate
 proves that source inventory exists. A local chain cannot reproduce the proprietary
 game-server operation that moves that inventory between SSUs, so this simulator does
 not claim to be a production game bridge.
+
+## Warehouse-receipts depots
+
+`publish` also publishes `warehouse_receipts` (pinned at `fe73b95a`) and turns both
+SSUs into depots. For each SSU it:
+
+1. creates the vault (`VaultConfig` and its multicoin `Collection`);
+2. installs warehouse receipts as the SSU's extension and freezes the configuration;
+3. deposits every item that names a `receiptHolder` and sends the receipts to that
+   actor.
+
+The default scenario gives the lister 10 source receipts (the goods to be moved) and
+the hauler 10 destination receipts of the same item type. The second set stands in
+for stock the hauler already holds or bought at the destination, which exchange-mode
+delivery requires. The helpers live in `minehaul_local::receipts`.
+
+`publish` then checks each depot on chain: the extension is `receipt::VaultAuth`,
+the freeze marker is present, the vault is bound to that SSU, and each receipt is
+owned by its holder with the expected collection, type and amount. The records are
+under `depots` in `protocol-deployment.json`.
+
+The acceptance cases do not use these receipts yet. Their cargo is still a separate
+token collection delivered by `deliver`. Moving cargo onto receipts and replacing the
+simulator with the receipt delivery adapter is the next step of ADR 0009.
