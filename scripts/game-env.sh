@@ -21,8 +21,7 @@ FLOW_RUNS_DIR="$RUNTIME_DIR/flows"
 MATRIX_MANIFEST="$RUNTIME_DIR/acceptance-matrix.json"
 DEFAULT_SCENARIO="$ROOT_DIR/integration/game/scenarios/full-flow.json"
 WORLD_CONTRACTS_REPO="${WORLD_CONTRACTS_REPO:-https://github.com/evefrontier/world-contracts.git}"
-WORLD_CONTRACTS_REF="${WORLD_CONTRACTS_REF:-v0.0.18}"
-WORLD_CONTRACTS_COMMIT="${WORLD_CONTRACTS_COMMIT:-8eb197e4573275d6f45b0da2c69ee793487a49fd}"
+WORLD_CONTRACTS_COMMIT="${WORLD_CONTRACTS_COMMIT:-d33ff232bd3878e8f9ad0721e18564b21facc925}"
 EXPECTED_SUI_VERSION="${MINEHAUL_EXPECTED_SUI_VERSION:-1.72.2}"
 RPC_HOST="${MINEHAUL_RPC_HOST:-127.0.0.1}"
 RPC_PORT="${MINEHAUL_RPC_PORT:-19000}"
@@ -124,7 +123,6 @@ doctor() {
     say "Sui: $sui_version"
     say "Node: $(node --version)"
     say "pnpm: $(pnpm --version)"
-    say "World contracts: $WORLD_CONTRACTS_REF"
     say "World commit: $WORLD_CONTRACTS_COMMIT"
     say "RPC: $RPC_URL"
 }
@@ -239,10 +237,15 @@ clone_world() {
         [[ "$current" == "$WORLD_CONTRACTS_COMMIT" ]] || fail "world checkout is $current, expected $WORLD_CONTRACTS_COMMIT; run reset"
         return
     fi
-    say "cloning world-contracts $WORLD_CONTRACTS_REF"
-    git clone --quiet --depth=1 --branch "$WORLD_CONTRACTS_REF" "$WORLD_CONTRACTS_REPO" "$WORLD_DIR"
+    # The pinned commit is untagged (it is the rev warehouse-receipts links),
+    # so fetch it by SHA instead of cloning a branch or tag.
+    say "fetching world-contracts $WORLD_CONTRACTS_COMMIT"
+    git init --quiet "$WORLD_DIR"
+    git -C "$WORLD_DIR" remote add origin "$WORLD_CONTRACTS_REPO"
+    git -C "$WORLD_DIR" fetch --quiet --depth=1 origin "$WORLD_CONTRACTS_COMMIT"
+    git -C "$WORLD_DIR" checkout --quiet --detach FETCH_HEAD
     [[ "$(git -C "$WORLD_DIR" rev-parse HEAD)" == "$WORLD_CONTRACTS_COMMIT" ]] || \
-        fail "resolved $WORLD_CONTRACTS_REF to an unexpected commit"
+        fail "fetched an unexpected world-contracts commit"
 }
 
 prepare_actors() {

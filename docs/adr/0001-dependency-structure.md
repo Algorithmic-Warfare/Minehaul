@@ -79,7 +79,7 @@ on its own.
 |---|---|---|
 | armature | `loash-industries/armature` (`packages/armature_framework`) | `4bd6fbaea43fab3967b0c1627b1bea679abc78c3` |
 | multicoin | `Algorithmic-Warfare/multicoin` (`packages/multicoin`) | `2772c26d24c02671726d39f167b8f772777875d9` |
-| world | `evefrontier/world-contracts` (`contracts/world`) | `8eb197e4573275d6f45b0da2c69ee793487a49fd` |
+| world | `evefrontier/world-contracts` (`contracts/world`) | `d33ff232bd3878e8f9ad0721e18564b21facc925` |
 | Sui, MoveStdlib | `MystenLabs/sui` (implicit) | `367fd808279bed26f7c64fc63160062a2ee29ab7` (from `Move.lock`) |
 
 The same rev is used in every package that declares a dependency, so a bump
@@ -106,7 +106,7 @@ drift.
 
 `minehaul_world_v0` must pin `world` to the rev that warehouse-receipts uses, so
 that `world::storage_unit::StorageUnit` and related types are the same type in
-both packages. **This is currently unmet** (drift item 3). warehouse-receipts itself is **not** a dependency yet. It is only
+both packages. warehouse-receipts itself is **not** a dependency yet. It is only
 needed for the inject/extract paths (`deposit_for_receipt` /
 `redeem_receipt`), and including it now would pull its failing tests into our
 test runs.
@@ -166,11 +166,11 @@ or integrating:
    localnet package still do, and all three must be bumped together. Until then our
    armature pin is not the armature published on `testnet_stillness`, so
    **Minehaul is not deployable there yet**.
-3. **world lags warehouse-receipts.** warehouse-receipts `main` (`fe73b95a`,
-   two-phase vault init) pins world `d33ff232`, 33 commits ahead of our
-   `8eb197e4`, which has no testnet publication. Bump world to match before
-   `minehaul_world_v0` depends on warehouse-receipts
-   ([ADR 0009](0009-delivery-adapter-contract.md) prerequisite 2).
+3. **world: resolved.** `minehaul_world_v0`, the localnet package and the
+   harness pin world `d33ff232`, the rev warehouse-receipts `main` (`fe73b95a`)
+   links. It is untagged, so the harness fetches it by SHA. The changes from
+   `8eb197e4` that the adapter touches are additive (`storage_unit::id`,
+   `revoke_extension_authorization`, inventory events).
 4. **Sui pins date from June 2026.** multicoin and armature were published with
    toolchain 1.74.1, Trinary Exchange and warehouse-receipts with 1.81.0; we
    build with 1.72.2.

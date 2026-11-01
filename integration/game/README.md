@@ -43,7 +43,7 @@ declares protocol amounts and timing, and lists ordered lifecycle steps with exp
 state, events, abort codes, escrow, and recipient balances. It supports one network node,
 exactly two SSUs, zero or more inventory item types, and either zero or two optional
 environmental gates. Gates can make a local world fixture more game-like, but Minehaul
-does not register them or use them to constrain travel. The v0.0.18
+does not register them or use them to constrain travel. The pinned
 game-to-chain helper fixes each seeded item entry at quantity `10` and volume `10`, so
 the validator rejects other values instead of pretending they are configurable.
 
@@ -53,10 +53,11 @@ directory. Never reuse the generated keys outside this disposable local network.
 The defaults are RPC port `19000` and faucet port `19123`; override them with
 `MINEHAUL_RPC_PORT` and `MINEHAUL_FAUCET_PORT` when needed.
 
-The harness pins `evefrontier/world-contracts` v0.0.18 because that is the package
-API imported by `minehaul_world_v0`. The newer official snapshot is a useful future
-compatibility target, but its split package API cannot exercise the current adapter.
-Change `WORLD_CONTRACTS_REF` only when intentionally testing an adapter migration.
+The harness pins `evefrontier/world-contracts` at `d33ff232`, the revision
+`minehaul_world_v0` and `loash-industries/warehouse-receipts` both link. That commit
+is untagged, so the harness fetches it by SHA. Change `WORLD_CONTRACTS_COMMIT` only
+when intentionally testing an adapter migration, and keep it equal to the world rev
+in the Move manifests.
 
 ## Live protocol flow
 
