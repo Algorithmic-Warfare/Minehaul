@@ -69,11 +69,12 @@ validate_scenario() {
                  (.typeId | type == "number" and . > 0) and
                  (.itemId | type == "number" and . > 0) and
                  (.items | type == "array") and
-                 all(.items[]; (.typeId | type == "number" and . > 0) and
+                 all(.items[]; (.name | type == "string" and test("^[a-z0-9]+(-[a-z0-9]+)*$")) and
+                                (.typeId | type == "number" and . > 0) and
                                 (.itemId | type == "number" and . > 0) and
                                 .quantity == 10 and .volume == 10 and
                                 (.receiptHolder == null or
-                                 ([.receiptHolder] | inside(["lister", "hauler", "arbiter"])))))) and
+                                 (.receiptHolder | IN("lister", "hauler", "arbiter")))))) and
       (.gates | type == "array" and (length == 0 or length == 2) and
         (length == 0 or .[0].typeId == .[1].typeId) and
         all(.[]; (.name | type == "string" and length > 0) and
@@ -628,7 +629,7 @@ publish_minehaul() {
         [[ "$(cat "$PROTOCOL_SOURCE_MARKER")" == "$wanted_hash" ]] || \
             fail "Minehaul sources changed since local publication; run reset"
         say "Minehaul packages already published"
-        verify_depots
+        verify_depots "${1:-$DEFAULT_SCENARIO}"
         return
     fi
 
@@ -667,7 +668,7 @@ publish_minehaul() {
           depots: $depots[0]}' > "$PROTOCOL_DEPLOYMENT"
     printf '%s\n' "$wanted_hash" > "$PROTOCOL_SOURCE_MARKER"
     say "Minehaul publication recorded: $PROTOCOL_DEPLOYMENT"
-    verify_depots
+    verify_depots "${1:-$DEFAULT_SCENARIO}"
 }
 
 call_package() {
@@ -700,6 +701,8 @@ setup_depots() {
     local -a depots=()
     while IFS=$'\t' read -r name storage_id; do
         say "setting up warehouse-receipts depot: $name" >&2
+        with_home sui client object "$storage_id" --json | jq -e '.content.extension == null' >/dev/null || \
+            fail "depot $name already has an extension (an earlier setup was interrupted); run reset"
         cap="$(find_owner_cap "$character" "$storage_id")" || fail "OwnerCap missing for $name"
         tx="$RUNTIME_DIR/depot-$name-setup.json"
         call_package minehaul-lister "$local_pkg" receipts setup_depot "$tx" "$storage_id" "$character" "$cap"
@@ -731,18 +734,35 @@ setup_depots() {
     printf '%s\n' "${depots[@]}" | jq -s .
 }
 
-# Check every depot on chain: warehouse receipts is the installed extension,
-# the configuration is frozen, the vault is bound to the SSU, and each seeded
-# receipt is owned by its holder with the expected collection, type and amount.
+# Check every depot on chain: the extension is exactly the published
+# warehouse-receipts VaultAuth, the world's freeze marker is present, the vault
+# is bound to the SSU and owns the recorded collection, and each seeded receipt
+# is owned by its holder with the expected collection, type and amount. The
+# records must cover every SSU and every item the scenario assigns a holder.
 verify_depots() {
-    local failed=0 name storage_id vault collection
+    local scenario="$1" failed=0 name storage_id vault collection extension freeze_key vault_type balance_type
+    jq -e --slurpfile scenario "$scenario" '
+      (.depots | type == "array") and
+      ([.depots[].name] | sort) == ([$scenario[0].storageUnits[].name] | sort) and
+      all(.depots[]; . as $depot | (.receipts | type == "array") and
+        ([.receipts[].item] | sort) ==
+        ([$scenario[0].storageUnits[] | select(.name == $depot.name) |
+          .items[] | select(.receiptHolder != null) | .name] | sort))
+    ' "$PROTOCOL_DEPLOYMENT" >/dev/null || \
+        fail "depot records in $PROTOCOL_DEPLOYMENT do not cover the scenario's SSUs and receipts"
+    extension="$(jq -r '.packages.warehouseReceipts | ltrimstr("0x")' "$PROTOCOL_DEPLOYMENT")::receipt::VaultAuth"
+    freeze_key="$(jq -r '.world.packageId' "$WORLD_DIR/deployments/localnet/extracted-object-ids.json")::extension_freeze::ExtensionFrozenKey"
+    vault_type="$(jq -r '.packages.warehouseReceipts' "$PROTOCOL_DEPLOYMENT")::vault::VaultConfig"
+    balance_type="$(jq -r '.packages.multicoin' "$PROTOCOL_DEPLOYMENT")::multicoin::Balance"
     while IFS=$'\t' read -r name storage_id vault collection; do
         if with_home sui client object "$storage_id" --json | \
-            jq -e '.content.extension | tostring | test("receipt::VaultAuth")' >/dev/null && \
+            jq -e --arg extension "$extension" '.content.extension == $extension' >/dev/null && \
           with_home sui client dynamic-field "$storage_id" --json | \
-            jq -e 'tostring | test("extension_freeze::ExtensionFrozenKey")' >/dev/null && \
+            jq -e --arg key "$freeze_key" 'any((.data // .dynamicFields)[]; .name.name == $key)' >/dev/null && \
           with_home sui client object "$vault" --json | \
-            jq -e --arg su "$storage_id" '.content.storage_unit_id == $su' >/dev/null; then
+            jq -e --arg su "$storage_id" --arg collection "$collection" --arg type "$vault_type" '
+              .objType == $type and .content.storage_unit_id == $su and
+              .content.collection_cap.collection == $collection' >/dev/null; then
             say "ok  depot/$name  vault=$vault extension=VaultAuth frozen"
         else
             say "invalid  depot/$name  extension, freeze or vault binding is wrong" >&2
@@ -751,8 +771,9 @@ verify_depots() {
         local owner balance type_id quantity
         while IFS=$'\t' read -r owner balance type_id quantity; do
             if with_home sui client object "$balance" --json | jq -e \
-              --arg owner "$owner" --arg collection "$collection" \
+              --arg owner "$owner" --arg collection "$collection" --arg type "$balance_type" \
               --argjson typeId "$type_id" --argjson quantity "$quantity" '
+                .objType == $type and
                 .owner.AddressOwner == $owner and .content.collection == $collection and
                 (.content.asset_id | tonumber) == $typeId and
                 (.content.amount | tonumber) == $quantity' >/dev/null; then
