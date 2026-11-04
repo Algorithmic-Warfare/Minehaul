@@ -45,8 +45,9 @@ specific to moving goods.
 Armature does two different jobs today, and the code does not separate them:
 
 1. **Party authority.** The network is armature DAO type-state. Only an approved
-   proposal can list or cancel a job, and claiming checks DAO membership
-   (`network::assert_can_haul`).
+   proposal can list or cancel a job. Claiming is open to DAO governance
+   members, the network's auxiliary haulers, and anyone when the network enables
+   the open marketplace (`network::assert_can_haul`).
 2. **Arbiter.** Only an armature proposal can end a dispute
    (`action::resolve_dispute<P, K>`, which takes `ExecutionRequest<P>`).
    `dispute_action` also lets any DAO governance member open one.
@@ -97,7 +98,9 @@ the performance**. That is the difference between an agreement and a contract.
 |---|---|
 | **Contract** | An arrangement whose outcome is enforced when it is created or executed. A Trinary Exchange fill is a contract: both sides settle in the same transaction. |
 | **Agreement** | An arrangement with at least one **obligation that outlives the transaction that creates it**. The parties' holdings are escrowed and enforced on-chain. Performance is **attested**, not enforced. Breaches go to a **resolver** the parties accepted when the agreement formed. |
+| **Formation** | The moment the offer is made; for hauls, listing. Whatever is "fixed at formation" is fixed before any acceptor exists. |
 | **Party** | An address with obligations or rights under the agreement. A haul has two: lister and hauler. |
+| **Role** | How holdings and rulings name a party: `Offeror`, `Acceptor`, or a `Beneficiary` named at formation. The acceptor's address is bound only at acceptance. |
 | **Terms** | Domain data the agreement carries but does not interpret, for example the endpoints and cargo manifest of a haul. |
 | **Holding** | A balance escrowed by the agreement, owned by one party and of one kind (below). |
 | **Consideration** | A holding paid for performance. The haul reward. |
@@ -171,15 +174,26 @@ already stores balances as dynamic object fields; only the key gains the owner a
 kind:
 
 ```move
+public enum Role has store, copy, drop {
+    Offeror,
+    Acceptor,
+    Beneficiary { addr: address }, // named at formation, e.g. the haul treasury
+}
+
 public enum HoldingKind has store, copy, drop { Consideration, Bond, Custody }
 
 public struct HoldingKey has store, copy, drop {
-    owner: address,
+    owner: Role,
     kind: HoldingKind,
     collection_id: ID,
     asset_id: u64,
 }
 ```
+
+Holdings and rulings name parties by role, not by address. Default rulings are
+fixed at formation, when nobody has accepted yet. Naming roles is what lets such
+a default allocate the acceptor's bond and pay the acceptor. The core resolves a
+role to an address only when it pays out.
 
 The rules:
 
@@ -188,9 +202,9 @@ The rules:
   Custody has already been handed over by the attested performance.
 - **Ruling:** must allocate every consideration and bond holding still escrowed,
   each exactly once, with shares summing to 10,000 bps.
-- **Eligible recipients:** fixed at formation. A ruling can pay only the parties
-  and beneficiaries named then (for hauls, the treasury). A resolver cannot pay
-  itself or an outsider.
+- **Eligible recipients:** fixed at formation as roles. A ruling can pay only the
+  offeror, the acceptor and the beneficiaries named then (for hauls, the
+  treasury). A resolver cannot pay itself or an outsider.
 - **Custody:** a ruling never allocates it. Custody still held returns to its
   owner, as `refund_cargo` does today.
 
@@ -243,7 +257,7 @@ A sketch of the core surface, not final API:
 ```move
 public enum Outcome has store, copy, drop { Performed, Breached, Void }
 
-public struct Share has store, copy, drop { recipient: address, bps: u16 }
+public struct Share has store, copy, drop { recipient: Role, bps: u16 }
 
 public struct Allocation has store, copy, drop {
     holding: HoldingKey,
@@ -284,7 +298,8 @@ sequenceDiagram
     participant DAO as Armature DAO
     participant R as ArmatureResolver (minehaul_armature)
     L->>H: dispute(job) inside the challenge window
-    H->>AG: open_dispute(Permit of HaulTerms, cause = Challenged)
+    H->>AG: open_dispute(Permit of HaulTerms)
+    Note over AG: cause = ChallengedAfterAttestation, from the status
     Note over AG: status Disputed, ruling window starts
     DAO->>DAO: members vote on ResolveDispute(job, ruling)
     DAO->>R: execute the approved ticket
@@ -302,10 +317,17 @@ dispute cause**, both fixed at formation:
 
 ```move
 public enum DisputeCause has store, copy, drop {
-    DeadlineMissed, // perform-by passed with no attestation
-    Challenged,     // a party disputed
+    DeadlineMissed,              // perform-by passed with no attestation
+    ChallengedBeforeAttestation, // a party disputed while Accepted
+    ChallengedAfterAttestation,  // a party challenged inside the challenge window
 }
 ```
+
+The core derives the cause from the status and the deadlines; the domain cannot
+choose it. Challenges before and after attestation must stay apart because their
+defaults differ. `Performed` is a plausible default only after attestation.
+Before it, the acceptor could dispute while still performing, wait out an idle
+resolver, and be paid as if it had delivered.
 
 If the resolver has not ruled when the window closes, anyone can apply the
 default for the cause that opened the dispute:
@@ -337,8 +359,9 @@ terms is the only one that can drive domain transitions:
 public struct Agreement<T: store> has key {
     id: UID,
     terms: T,                    // opaque to the agreement core
-    parties: vector<address>,
-    recipients: vector<address>, // everyone a ruling may pay
+    offeror: address,
+    acceptor: Option<address>,   // bound at acceptance
+    beneficiaries: vector<address>, // with the parties, everyone a ruling may pay
     attestor: Binding,
     resolver: Binding,
     status: Status,
@@ -352,7 +375,7 @@ public struct Agreement<T: store> has key {
 /// Domain-gated: only the module that defines T can create Permit<T>.
 public fun accept<T: store>(_permit: Permit<T>, a: &mut Agreement<T>, acceptor: address, bond: Balance, clock: &Clock);
 public fun withdraw<T: store>(_permit: Permit<T>, a: &mut Agreement<T>, ctx: &mut TxContext);
-public fun open_dispute<T: store>(_permit: Permit<T>, a: &mut Agreement<T>, by: address, cause: DisputeCause, clock: &Clock);
+public fun open_dispute<T: store>(_permit: Permit<T>, a: &mut Agreement<T>, by: address, clock: &Clock);
 public fun terms_mut<T: store>(_permit: Permit<T>, a: &mut Agreement<T>): &mut T;
 
 /// Permissionless once their deadline passes.
@@ -414,7 +437,7 @@ The edge that must never exist is `agreement → armature`.
 |---|---|---|
 | Lister | Offeror party | The approved payload fixes the address, as today |
 | Hauler | Acceptor party | Bound at claim |
-| Treasury | Eligible recipient | Not a party; it can only receive what terms or rulings give it |
+| Treasury | Beneficiary | Not a party; it can only receive what terms or rulings give it |
 | Reward | Consideration (lister's) | |
 | Collateral | Bond (hauler's) | Must be in the reward asset, as today |
 | Cargo | Custody (lister's) | Released only by the attested handoff |
@@ -593,8 +616,10 @@ listing policy.
 1. **Disputing rights and griefing.** Who may open a dispute in each state, and
    should opening one require a bond that the loser forfeits?
 2. **Haul default rulings.** What should the default be for each cause? For
-   example, `Performed` for an unanswered challenge after attested delivery, and
-   `Breached` with the network's slash share for a missed deadline.
+   example, `Performed` for `ChallengedAfterAttestation`, `Breached` with the
+   network's slash share for `DeadlineMissed`, and for
+   `ChallengedBeforeAttestation` something that never pays the hauler as if it
+   had delivered (`Void`, or `Breached`).
 3. **Where does a loser's reward go?** Today it goes to the treasury on a loss.
    Should rulings be able to return it to the lister by default?
 4. **Appeals and consent.** Can the parties jointly replace the resolver, or
@@ -616,7 +641,9 @@ listing policy.
 - **Ruling validity:** a ruling that pays a non-recipient, reallocates custody,
   omits or duplicates a holding, or does not sum to 10,000 bps aborts.
 - **Default ruling:** applies only after the window, uses the dispute's cause, and
-  prevents a later ruling.
+  prevents a later ruling. A default fixed at listing allocates the hauler's bond
+  and pays the hauler who later claimed. A dispute opened before attestation
+  takes the `ChallengedBeforeAttestation` default, whoever opened it.
 - **Single payout:** every terminal state is final and pays once, as today.
 - **Compiler probes:** `scripts/check-security-boundaries.sh` gains a forged
   resolver permit and a forged domain permit, both of which must fail to compile.
