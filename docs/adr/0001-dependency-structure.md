@@ -188,8 +188,9 @@ or integrating:
 5. **multicoin's framework copy is unpinned.** Because of the `framework/testnet`
    branch dependency above, every package now also compiles the branch's
    current head (`16d2dc1e` when this was written) next to our `367fd808`.
-   Packages that include world add a third copy, `a9a6825e`, from world's
-   `testnet-v1.66.2` tag. With `c7a97f2f` there was no branch copy. CI fetches
+   With `c7a97f2f` there was no branch copy. (World `d33ff232` declares no
+   framework of its own; the earlier `8eb197e4` added a third copy from its
+   `testnet-v1.66.2` tag.) CI fetches
    fresh, so if the branch moves to framework source that Sui 1.72.2 cannot
    compile, CI breaks without a change here. The fix belongs in multicoin (pin
    a SHA), but a new multicoin commit also has to be adopted by Trinary
