@@ -74,7 +74,6 @@ fun claim(s: &mut ts::Scenario, c: &Clock) {
     let mut a = s.take_shared<HaulAction>();
     let collateral = s.take_from_sender<Balance>();
     action::claim_action<ConfigureLogisticNetwork>(&mut a, &dao, collateral, c, s.ctx());
-    assert!(action::has_hauler_cap(&a, HAULER), 0);
     ts::return_shared(a);
     ts::return_shared(dao);
     let sender = s.ctx().sender();
@@ -108,7 +107,6 @@ fun deliver(s: &mut ts::Scenario, c: &Clock) {
     assert!(action::is_delivered(&a), 3);
     assert!(escrow::reward_amount(action::escrow(&a)) == 1000, 4);
     assert!(escrow::collateral_amount(action::escrow(&a)) == 400, 5);
-    assert!(!action::has_hauler_cap(&a, HAULER), 6);
     ts::return_shared(a);
     ts::return_shared(dao);
     ts::return_shared(registry);
@@ -196,7 +194,6 @@ fun resolve(s: &mut ts::Scenario, award: bool, slash: u16) {
     let t = ticket(&dao, resolve_dispute::new(action::id(&a), award, slash));
     resolve_dispute::execute(&dao, &mut a, t, s.ctx());
     assert!(action::is_resolved(&a), 0);
-    assert!(!action::has_hauler_cap(&a, HAULER), 1);
     ts::return_shared(a);
     ts::return_shared(dao);
     let sender = s.ctx().sender();
@@ -640,6 +637,62 @@ fun listing_rejects_duplicate_cargo_asset() {
 fun listing_rejects_reward_different_from_approved_payload() {
     let (mut s, c) = setup(400);
     list_invalid(&mut s, &c, false, true);
+    abort 999
+}
+
+/// List an otherwise valid job with the given destination and reward asset.
+fun list_custom(s: &mut ts::Scenario, c: &Clock, destination: ID, reward_asset: u64) {
+    let dao = s.take_shared<DAO>();
+    let mut collection = ts::take_from_address<multicoin::Collection>(s, LISTER);
+    let cap = ts::take_from_address<multicoin::CollectionCap>(s, LISTER);
+    let cid = object::id(&collection);
+    let cargo = multicoin::mint_balance(&cap, &mut collection, 1, 25, s.ctx());
+    let reward = multicoin::mint_balance(&cap, &mut collection, reward_asset, 1000, s.ctx());
+    let p = list_haul_action::new(src(), destination, vector[action::new_cargo_line(cid, 1, 25)],
+        action::new_cargo_line(cid, reward_asset, 1000), 8000, LISTER, 1000, 1000);
+    let t = ticket(&dao, p);
+    list_haul_action::execute(&dao, t, vector[cargo], reward, c, s.ctx());
+    abort 999
+}
+
+#[test, expected_failure(abort_code = 42, location = minehaul_core::action)]
+fun listing_rejects_same_source_and_destination() {
+    let (mut s, c) = setup(400);
+    list_custom(&mut s, &c, src(), 0);
+    abort 999
+}
+
+#[test, expected_failure(abort_code = 40, location = minehaul_core::action)]
+fun listing_rejects_reward_outside_network_asset() {
+    let (mut s, c) = setup(400);
+    list_custom(&mut s, &c, dst(), 2);
+    abort 999
+}
+
+fun dispute_after_collection(s: &mut ts::Scenario, c: &Clock) {
+    claim(s, c);
+    collect(s, c);
+    let dao = s.take_shared<DAO>();
+    let mut a = s.take_shared<HaulAction>();
+    action::dispute_action<ConfigureLogisticNetwork>(&mut a, &dao, c, s.ctx());
+    ts::return_shared(a);
+    ts::return_shared(dao);
+    s.next_tx(LISTER);
+}
+
+#[test, expected_failure(abort_code = 43, location = minehaul_core::action)]
+fun resolution_rejects_award_with_slash() {
+    let (mut s, c) = setup(400);
+    dispute_after_collection(&mut s, &c);
+    resolve(&mut s, true, 100);
+    abort 999
+}
+
+#[test, expected_failure(abort_code = 39, location = minehaul_core::action)]
+fun resolution_rejects_slash_over_full_collateral() {
+    let (mut s, c) = setup(400);
+    dispute_after_collection(&mut s, &c);
+    resolve(&mut s, false, 10_001);
     abort 999
 }
 

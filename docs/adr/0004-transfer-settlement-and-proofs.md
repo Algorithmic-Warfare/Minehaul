@@ -57,6 +57,8 @@ request would allow callers to bypass a proposal handler's payload checks.
    the network key type on every job. Remove network action counters. HaulerCap
    has `store` but no `key`, so it lives in a dynamic field, not a dynamic object
    field. Cargo, reward and collateral balances remain dynamic object fields.
+   (HaulerCap was later removed: the hauler is recorded in the job's status and
+   the deadline on the job, and nothing else read the cap.)
 7. **Bound the milestone to Transfer.** Inject/Extract listing explicitly aborts.
    The world package verifies SSUs; no production gate or delivery adapter is
    claimed. Integration tests use a visibly test-only delivery adapter. The existing

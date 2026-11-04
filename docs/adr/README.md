@@ -11,6 +11,7 @@ code looks the way it does. For *what* it does, read the module doc comments.
 | [0003](0003-haul-actions-read-only-network.md) | Haul actions never write network state | Implemented; routing decision superseded by 0005 |
 | [0004](0004-transfer-settlement-and-proofs.md) | Transfer settlement and proof boundaries | Accepted; routing terms superseded by 0005 |
 | [0005](0005-endpoint-only-transport.md) | Endpoint-only transport | Accepted |
+| [0006](0006-agreement-primitive.md) | Agreement as the protocol primitive | Proposed |
 
 ## Writing a new ADR
 
