@@ -18,7 +18,7 @@ module minehaul_world_v0::ssu;
 
 use sui::object;
 use sui::clock::Clock;
-use minehaul_core::witnesses::{Self, AdapterAuth, AdapterRegistry, VerifiedSsu};
+use minehaul_core::witnesses::{ AdapterAuth, AdapterRegistry, VerifiedSsu};
 use world::storage_unit::StorageUnit;
 use world::access::{Self, OwnerCap};
 use world::character::{Self, Character};
@@ -36,10 +36,10 @@ const EOwnerCapMismatch: u64 = 1;
 /// audit; we do NOT currently enforce that `character` is the SSU's owner —
 /// the OwnerCap check is the authoritative ownership proof.
 ///
-/// TODO(minehaul#9): the `owner_char_id` field is presently advisory metadata.
+/// TODO(minehaul#14): the `owner_char_id` field is presently advisory metadata.
 /// An attacker holding a valid OwnerCap could record an arbitrary character.
-/// When the character→ssu binding is needed for downstream auth (e.g. gate
-/// permits checking carrier identity), enforce it here.
+/// When the character→ssu binding is needed for collection or delivery
+/// authorization, enforce it here.
 public fun verify_ssu(
     ssu: &StorageUnit,
     owner_cap: &OwnerCap<StorageUnit>,
@@ -51,5 +51,5 @@ public fun verify_ssu(
     let ssu_id = object::id(ssu);
     assert!(access::is_authorized(owner_cap, ssu_id), EOwnerCapMismatch);
     let owner_char_id = character::owner_cap_id(character);
-    witnesses::mint_verified_ssu(auth, registry, ssu_id, owner_char_id, clock)
+    minehaul_world_v0::adapter::mint_ssu(auth, registry, ssu_id, owner_char_id, clock)
 }

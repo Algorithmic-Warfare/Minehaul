@@ -391,3 +391,66 @@ fun test_destroy_empty_aborts_if_reward_nonzero() {
     transfer::public_transfer(cap, ADMIN);
     scenario.end();
 }
+
+#[test]
+fun test_payout_u64_max_preserves_every_unit() {
+    let mut scenario = ts::begin(ADMIN);
+    let (mut coll, cap) = multicoin::new_collection(scenario.ctx());
+    let amount = 18_446_744_073_709_551_615;
+    let reward = mint(&cap, &mut coll, amount, scenario.ctx());
+    let mut uid = object::new(scenario.ctx());
+    let mut esc = escrow::new(&mut uid, reward, 9999, scenario.ctx());
+    let (hauler, treasury, collateral) = escrow::payout_success(&mut esc, &mut uid, scenario.ctx());
+    assert!(multicoin::value(&hauler) == 18_444_899_399_302_180_659, 0);
+    assert!(multicoin::value(&hauler) + multicoin::value(&treasury) == amount, 1);
+    collateral.destroy_none();
+    multicoin::burn(&mut coll, hauler, scenario.ctx());
+    multicoin::burn(&mut coll, treasury, scenario.ctx());
+    escrow::destroy_empty(esc);
+    finish(coll, cap, uid);
+    scenario.end();
+}
+
+#[test]
+fun test_slash_large_collateral_preserves_every_unit() {
+    let mut scenario = ts::begin(ADMIN);
+    let (mut coll, cap) = multicoin::new_collection(scenario.ctx());
+    let reward = mint(&cap, &mut coll, 1, scenario.ctx());
+    let collateral = mint(&cap, &mut coll, 18_446_744_073_709_551_614, scenario.ctx());
+    let mut uid = object::new(scenario.ctx());
+    let mut esc = escrow::new(&mut uid, reward, 10000, scenario.ctx());
+    escrow::post_collateral(&mut esc, &mut uid, collateral);
+    let (lister, treasury) = escrow::slash(&mut esc, &mut uid, 5000, scenario.ctx());
+    assert!(multicoin::value(&lister) == 9_223_372_036_854_775_807, 0);
+    assert!(multicoin::value(&treasury) == 9_223_372_036_854_775_808, 1);
+    multicoin::burn(&mut coll, lister, scenario.ctx());
+    multicoin::burn(&mut coll, treasury, scenario.ctx());
+    escrow::destroy_empty(esc);
+    finish(coll, cap, uid);
+    scenario.end();
+}
+
+#[test, expected_failure(abort_code = 17, location = minehaul_core::escrow)]
+fun test_collateral_rejects_wrong_asset() {
+    let mut scenario = ts::begin(ADMIN);
+    let (mut coll, cap) = multicoin::new_collection(scenario.ctx());
+    let reward = mint(&cap, &mut coll, 1000, scenario.ctx());
+    let collateral = multicoin::mint_balance(&cap, &mut coll, 1, 400, scenario.ctx());
+    let mut uid = object::new(scenario.ctx());
+    let mut esc = escrow::new(&mut uid, reward, 8000, scenario.ctx());
+    escrow::post_collateral(&mut esc, &mut uid, collateral);
+    abort 0
+}
+
+#[test, expected_failure(abort_code = 17, location = minehaul_core::escrow)]
+fun test_collateral_rejects_wrong_collection() {
+    let mut scenario = ts::begin(ADMIN);
+    let (mut coll, cap) = multicoin::new_collection(scenario.ctx());
+    let (mut other, other_cap) = multicoin::new_collection(scenario.ctx());
+    let reward = mint(&cap, &mut coll, 1000, scenario.ctx());
+    let collateral = mint(&other_cap, &mut other, 400, scenario.ctx());
+    let mut uid = object::new(scenario.ctx());
+    let mut esc = escrow::new(&mut uid, reward, 8000, scenario.ctx());
+    escrow::post_collateral(&mut esc, &mut uid, collateral);
+    abort 0
+}
