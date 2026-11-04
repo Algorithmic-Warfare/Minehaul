@@ -566,9 +566,9 @@ listing policy.
 - **Delivery is unchanged.** The obligation and proof model of ADR 0004 is kept.
   It becomes the haul attestor's implementation.
 - **Shared types must match.** A trade balance can flow into a haul only if Trinary
-  Exchange and Minehaul resolve multicoin to the same published package. As of
-  this ADR they pin different revisions (`2772c26` and `c7a97f2`); confirm this
-  before composing them on testnet.
+  Exchange and Minehaul resolve multicoin to the same published package. Both
+  now pin `2772c26` (see ADR 0001); keep them aligned before composing them on
+  testnet.
 
 ## Alternatives considered
 

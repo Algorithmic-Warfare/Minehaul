@@ -85,6 +85,12 @@ on its own.
 The same rev is used in every package that declares a dependency, so a bump
 has to be made in all manifests at once.
 
+The framework row is only our packages' own pin. Dependencies bring their own
+framework copies, and the build compiles each one. multicoin `2772c26` declares
+`Sui` at `rev = "framework/testnet"`, which is a branch, not a SHA. Its copy is
+therefore whatever that branch points to when the dependency is fetched (see
+drift item 5).
+
 ### 5. multicoin is declared with `override = true`
 
 armature at the pinned rev pulls multicoin at a different commit (`330d3393`).
@@ -127,8 +133,10 @@ CI once armature is bumped (drift item 2).
 
 - A world-contracts upgrade touches one adapter package, not the protocol.
 - Governance and world integration can change independently.
-- Pinned SHAs give reproducible builds. `Move.lock` files are generated
-  locally and not committed (`.gitignore`).
+- Pinned SHAs make our own dependencies reproducible. `Move.lock` files are
+  generated locally and not committed (`.gitignore`), so a framework copy that a
+  dependency declares by branch is resolved afresh on every clean fetch (drift
+  item 5).
 
 **Negative / costs**
 
@@ -150,8 +158,11 @@ These don't change the decision above, but they must be fixed before deploying
 or integrating:
 
 1. **multicoin: resolved.** Every package pins `2772c26d`, the rev Trinary
-   Exchange and warehouse-receipts link. Its source is identical to the previous
-   pin `c7a97f2f`; only `Move.toml` and `Published.toml` changed. On
+   Exchange and warehouse-receipts link. Its Move source is identical to the
+   previous pin `c7a97f2f`. The package metadata changed: `Move.toml` gains an
+   explicit `Sui` dependency on the `framework/testnet` branch (item 5) and new
+   environment entries, `Move.lock` and `Published.toml` changed, and
+   `Pub.testnet.toml` was removed. On
    `testnet_stillness` it is published at `0xdbb7…e2ba`, the publication
    TriEx links.
 2. **armature is a breaking bump, deferred to ADR 0007.** Cycle 7
@@ -174,6 +185,17 @@ or integrating:
 4. **Sui pins date from June 2026.** multicoin and armature were published with
    toolchain 1.74.1, Trinary Exchange and warehouse-receipts with 1.81.0; we
    build with 1.72.2.
+5. **multicoin's framework copy is unpinned.** Because of the `framework/testnet`
+   branch dependency above, every package now also compiles the branch's
+   current head (`16d2dc1e` when this was written) next to our `367fd808`.
+   Packages that include world add a third copy, `a9a6825e`, from world's
+   `testnet-v1.66.2` tag. With `c7a97f2f` there was no branch copy. CI fetches
+   fresh, so if the branch moves to framework source that Sui 1.72.2 cannot
+   compile, CI breaks without a change here. The fix belongs in multicoin (pin
+   a SHA), but a new multicoin commit also has to be adopted by Trinary
+   Exchange and warehouse-receipts to keep the alignment of item 1. Until then
+   this is a known risk, and the first thing to check if a multicoin build fails
+   for no local reason.
 
 ## armature compatibility check (2026-09-27, superseded)
 
