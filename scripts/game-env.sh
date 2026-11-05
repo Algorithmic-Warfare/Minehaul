@@ -562,7 +562,7 @@ prepare_local_move_workspace() {
     armature_sources="$(find "$HOME_DIR/.move/git" -type d \
         -path '*4bd6fbaea43fab3967b0c1627b1bea679abc78c3/packages/armature_framework/sources' | head -1)"
     multicoin_sources="$(find "$HOME_DIR/.move/git" -type d \
-        -path '*c7a97f2f42ffbddbe2d44686cbc9eebd1810b8d6/packages/multicoin/sources' | head -1)"
+        -path '*2772c26d24c02671726d39f167b8f772777875d9/packages/multicoin/sources' | head -1)"
     [[ -d "$armature_sources" ]] || fail "could not resolve pinned armature sources"
     [[ -d "$multicoin_sources" ]] || fail "could not resolve pinned multicoin sources"
 
